@@ -74,7 +74,15 @@ public class Top100Test {
 
     @Test
     public void top100() throws InterruptedException {
-        MysqlDimensionTable mysqlDimensionTable = new MysqlDimensionTable("jdbc:mysql://localhost:3306/e-commerce",
+        /**
+         * create database ecommerce;
+         * CREATE USER 'userName'@'localhost' IDENTIFIED BY 'password';
+         * GRANT ALL ON *.* TO 'userName'@'localhost';
+         * use ecommerce;
+         * create table commodity(id int not null  auto_increment, name varchar(40), price int, primary key (id));
+         *
+         */
+        MysqlDimensionTable mysqlDimensionTable = new MysqlDimensionTable("jdbc:mysql://localhost:3306/ecommerce",
                 "commodity",
                 "userName",
                 "password",
