@@ -231,9 +231,9 @@ public class SlsStreamTable extends AbstractStreamTable {
 
                             long now = System.currentTimeMillis();
                             long ms = (long) time * 1000;
-                            Delay.DELAY.log("业务延迟" + slsStreamTable.sign, ms);
-                            Delay.DELAY.log("数据间隔" + slsStreamTable.sign, now);
-                            Delay.RESIDENCE_TIME.log("数据滞留" + slsStreamTable.sign, now - ms);
+                            Delay.DELAY.log("business-delay" + slsStreamTable.sign, ms);
+                            Delay.DELAY.log("data-interval" + slsStreamTable.sign, now);
+                            Delay.RESIDENCE_TIME.log("data-residence-time" + slsStreamTable.sign, now - ms);
 
                             int i = 0;
                             for (ByteArray key : columns) {

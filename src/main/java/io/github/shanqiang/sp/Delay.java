@@ -39,15 +39,15 @@ public class Delay {
                         ms %= 1000;
                         StringBuilder sb = new StringBuilder(24);
                         if (0 != hour) {
-                            sb.append(hour).append("小时");
+                            sb.append(hour).append("h");
                         }
                         if (0 != minute) {
-                            sb.append(minute).append("分钟");
+                            sb.append(minute).append("m");
                         }
                         if (0 != second) {
-                            sb.append(second).append("秒");
+                            sb.append(second).append("s");
                         }
-                        sb.append(ms).append("毫秒");
+                        sb.append(ms).append("ms");
                         logger.info("{}: {}", name, sb.toString());
                     }
                 }
