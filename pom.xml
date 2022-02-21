@@ -28,7 +28,7 @@ under the License.
     <groupId>io.github.shanqiang-sq</groupId>
     <artifactId>jstream</artifactId>
     <packaging>jar</packaging>
-    <version>1.0.10</version>
+    <version>1.0.11-SNAPSHOT</version>
 
     <licenses>
         <license>
@@ -42,7 +42,7 @@ under the License.
         <url>https://github.com/shanqiang-sq/jstream</url>
         <connection>git@github.com:shanqiang-sq/jstream.git</connection>
         <developerConnection>scm:git:git@github.com:shanqiang-sq/jstream.git</developerConnection>
-        <tag>jstream-1.0.10</tag>
+        <tag>jstream</tag>
     </scm>
 
     <properties>
