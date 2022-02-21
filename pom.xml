@@ -26,10 +26,10 @@ under the License.
 
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.alibaba</groupId>
-    <artifactId>table-computing</artifactId>
+    <groupId>io.github.shanqiang-sq</groupId>
+    <artifactId>jstream</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.1</version>
+    <version>1.0.0</version>
 
     <licenses>
         <license>
@@ -40,9 +40,9 @@ under the License.
     </licenses>
 
     <scm>
-        <url>https://github.com/alibaba/table-computing</url>
-        <connection>git@github.com:alibaba/table-computing.git</connection>
-        <developerConnection>scm:git:https://github.com/alibaba/table-computing.git</developerConnection>
+        <url>https://github.com/shanqiang-sq/jstream</url>
+        <connection>git@github.com:shanqiang-sq/jstream.git</connection>
+        <developerConnection>scm:git:https://github.com/shanqiang-sq/jstream.git</developerConnection>
     </scm>
 
     <properties>
@@ -145,7 +145,7 @@ under the License.
                 <extensions>true</extensions>
                 <configuration>
                     <serverId>ossrh</serverId>
-                    <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+                    <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
 <!--                    <autoReleaseAfterClose>true</autoReleaseAfterClose>-->
                 </configuration>
             </plugin>
@@ -189,6 +189,10 @@ under the License.
                         <goals>
                             <goal>sign</goal>
                         </goals>
+                        <configuration>
+                            <keyname>C8468270E946FCFA639696304E7F368FA7430B9A</keyname>
+                            <passphraseServerId>ossrh</passphraseServerId>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
@@ -206,19 +210,19 @@ under the License.
     <distributionManagement>
         <snapshotRepository>
             <id>ossrh</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
         </snapshotRepository>
         <repository>
             <id>ossrh</id>
-            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+            <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
         </repository>
     </distributionManagement>
     <contributors>
         <contributor>
             <properties>
                 <provider>shanqiang-sq</provider>
-                <codeName>table-computing</codeName>
-                <codeUrl>https://github.com/alibaba/table-computing</codeUrl>
+                <codeName>jstream</codeName>
+                <codeUrl>https://github.com/shanqiang-sq/jstream</codeUrl>
             </properties>
         </contributor>
     </contributors>
