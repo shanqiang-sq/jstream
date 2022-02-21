@@ -1,6 +1,5 @@
 package io.github.shanqiang.offheap;
 
-import com.alibaba.tc.table.*;
 import io.github.shanqiang.table.ColumnTypeBuilder;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.TableBuilder;

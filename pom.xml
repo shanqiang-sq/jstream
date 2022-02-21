@@ -28,9 +28,9 @@ under the License.
 
     <groupId>io.github.shanqiang-sq</groupId>
     <artifactId>jstream</artifactId>
-    <packaging>pom</packaging>
-    <version>1.0.1</version>
-    
+    <packaging>jar</packaging>
+    <version>1.0.2</version>
+
     <licenses>
         <license>
             <name>The Apache Software License, Version 2.0</name>
