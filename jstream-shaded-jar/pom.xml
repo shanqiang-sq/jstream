@@ -8,7 +8,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>shade-mysql5</artifactId>
+    <artifactId>jstream-shaded-jar</artifactId>
     <packaging>jar</packaging>
 
     <dependencies>
@@ -54,11 +54,4 @@
             </plugin>
         </plugins>
     </build>
-
-  <scm>
-    <tag>jstream-root-1.0.12</tag>
-    <connection>git@github.com:shanqiang-sq/jstream.git</connection>
-    <developerConnection>scm:git:git@github.com:shanqiang-sq/jstream.git</developerConnection>
-    <url>https://github.com/shanqiang-sq/jstream</url>
-  </scm>
 </project>

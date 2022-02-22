@@ -31,8 +31,8 @@ under the License.
     <version>1.0.14-SNAPSHOT</version>
 
     <modules>
-        <module>shade-mysql5</module>
-        <module>jstream-main</module>
+        <module>jstream-shaded-jar</module>
+        <module>jstream</module>
     </modules>
 
     <dependencyManagement>
@@ -40,7 +40,7 @@ under the License.
             <!-- JStream -->
             <dependency>
                 <groupId>io.github.shanqiang-sq</groupId>
-                <artifactId>shade-mysql5</artifactId>
+                <artifactId>jstream-shaded-jar</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -51,6 +51,109 @@ under the License.
             </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.sonatype.plugins</groupId>
+                <artifactId>nexus-staging-maven-plugin</artifactId>
+                <extensions>true</extensions>
+                <configuration>
+                    <serverId>ossrh</serverId>
+                    <nexusUrl>https://s01.oss.sonatype.org/</nexusUrl>
+                    <autoReleaseAfterClose>true</autoReleaseAfterClose>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>attach-sources</id>
+                        <goals>
+                            <goal>jar-no-fork</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <configuration>
+                    <javadocExecutable>${java.home}/../bin/javadoc</javadocExecutable>
+                    <additionalJOptions>
+                        <additionalJOption>-Xdoclint:none</additionalJOption>
+                    </additionalJOptions>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>attach-javadocs</id>
+                        <goals>
+                            <goal>jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-gpg-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>sign-artifacts</id>
+                        <phase>verify</phase>
+                        <goals>
+                            <goal>sign</goal>
+                        </goals>
+                        <configuration>
+                            <keyname>C8468270E946FCFA639696304E7F368FA7430B9A</keyname>
+                            <passphraseServerId>ossrh</passphraseServerId>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>2.5.3</version>
+                <configuration>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                    <useReleaseProfile>false</useReleaseProfile>
+                    <releaseProfiles>release</releaseProfiles>
+                    <goals>deploy</goals>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <encoding>UTF-8</encoding>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+    <distributionManagement>
+        <snapshotRepository>
+            <id>ossrh</id>
+            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
+        </snapshotRepository>
+        <repository>
+            <id>ossrh</id>
+            <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+        </repository>
+    </distributionManagement>
+
+    <contributors>
+        <contributor>
+            <properties>
+                <provider>shanqiang-sq</provider>
+                <codeName>jstream</codeName>
+                <codeUrl>https://github.com/shanqiang-sq/jstream</codeUrl>
+            </properties>
+        </contributor>
+    </contributors>
 
     <licenses>
         <license>
@@ -64,6 +167,6 @@ under the License.
         <url>https://github.com/shanqiang-sq/jstream</url>
         <connection>git@github.com:shanqiang-sq/jstream.git</connection>
         <developerConnection>scm:git:git@github.com:shanqiang-sq/jstream.git</developerConnection>
-        <tag>jstream-root-1.0.12</tag>
+        <tag>jstream</tag>
     </scm>
 </project>
