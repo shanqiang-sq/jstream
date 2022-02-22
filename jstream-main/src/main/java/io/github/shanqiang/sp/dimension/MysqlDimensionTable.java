@@ -1,7 +1,9 @@
 package io.github.shanqiang.sp.dimension;
 
+import com.mysql.cj.jdbc.MysqlDataSource;
 import io.github.shanqiang.table.Type;
 
+import javax.sql.DataSource;
 import java.time.Duration;
 import java.util.Map;
 
@@ -34,5 +36,13 @@ public class MysqlDimensionTable extends RdsDimensionTable {
                                Map<String, Type> columnTypeMap,
                                String... primaryKeyColumnNames) {
         super(jdbcUrl, userName, password, refreshInterval, sql, columnTypeMap, primaryKeyColumnNames);
+    }
+
+    protected DataSource newDataSource() {
+        MysqlDataSource dataSource = new MysqlDataSource();
+        dataSource.setUrl(url);
+        dataSource.setUser(userName);
+        dataSource.setPassword(password);
+        return dataSource;
     }
 }

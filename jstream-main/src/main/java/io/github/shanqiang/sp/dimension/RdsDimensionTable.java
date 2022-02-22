@@ -6,11 +6,11 @@ import io.github.shanqiang.table.Index;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.TableBuilder;
 import io.github.shanqiang.table.Type;
-import com.mysql.cj.jdbc.MysqlDataSource;
 import io.github.shanqiang.Threads;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -22,12 +22,12 @@ import java.util.concurrent.TimeUnit;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
-public class RdsDimensionTable extends DimensionTable {
+public abstract class RdsDimensionTable extends DimensionTable {
     private static final Logger logger = LoggerFactory.getLogger(RdsDimensionTable.class);
 
-    private final String url;
-    private final String userName;
-    private final String password;
+    protected final String url;
+    protected final String userName;
+    protected final String password;
     private final Duration refreshInterval;
     private final Map<String, Type> columnTypeMap;
     private final String[] primaryKeyColumnNames;
@@ -46,6 +46,8 @@ public class RdsDimensionTable extends DimensionTable {
                 columnTypeMap,
                 primaryKeyColumnNames);
     }
+
+    abstract protected DataSource newDataSource();
 
     public RdsDimensionTable(String jdbcUrl,
                              final String userName,
@@ -78,10 +80,7 @@ public class RdsDimensionTable extends DimensionTable {
                             long pre = System.currentTimeMillis();
                             logger.info("begin to load {}", myName);
                             TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
-                            MysqlDataSource dataSource = new MysqlDataSource();
-                            dataSource.setUrl(url);
-                            dataSource.setUser(userName);
-                            dataSource.setPassword(password);
+                            DataSource dataSource = newDataSource();
                             Connection connection = dataSource.getConnection();
                             PreparedStatement preparedStatement = connection.prepareStatement(sql);
                             ResultSet resultSet = preparedStatement.executeQuery();
