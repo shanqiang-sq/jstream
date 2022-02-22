@@ -11,21 +11,6 @@
     <artifactId>jstream</artifactId>
     <packaging>jar</packaging>
 
-    <licenses>
-        <license>
-            <name>The Apache Software License, Version 2.0</name>
-            <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <scm>
-        <url>https://github.com/shanqiang-sq/jstream</url>
-        <connection>git@github.com:shanqiang-sq/jstream.git</connection>
-        <developerConnection>scm:git:git@github.com:shanqiang-sq/jstream.git</developerConnection>
-        <tag>jstream-root-1.0.12</tag>
-    </scm>
-
     <properties>
         <odps.version>0.38.3-public</odps.version>
     </properties>
