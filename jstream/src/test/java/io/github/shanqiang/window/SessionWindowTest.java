@@ -23,8 +23,8 @@ public class SessionWindowTest {
     @Test
     public void session() {
         Map<String, Type> columnTypeMap = new ColumnTypeBuilder().
-                column("firstPartitionByColumn", Type.VARCHAR).
-                column("secondPartitionByColumn", Type.VARCHAR).
+                column("firstPartitionByColumn", Type.VARBYTE).
+                column("secondPartitionByColumn", Type.VARBYTE).
                 column("ts", Type.BIGINT).
                 build();
         InsertableStreamTable insertableStreamTable = new InsertableStreamTable(1, columnTypeMap);

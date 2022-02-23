@@ -26,28 +26,17 @@ public class RowByTableHeap extends AbstractRow {
     }
 
     @Override
-    public Comparable[] getAll() {
-        int len = size();
-        Comparable[] comparables = new Comparable[len];
-        for (int i = 0; i < len; i++) {
-            comparables[i] = get(i);
-        }
-
-        return comparables;
+    public Comparable getComparable(int index) {
+        return table.get(index).get(row);
     }
 
     @Override
-    public Comparable get(int index) {
-        return ifStr(table.get(index).get(row));
-    }
-
-    @Override
-    public Comparable get(String columnName) {
+    public Comparable getComparable(String columnName) {
         Integer index = columnName2Index.get(columnName);
         if (null == index) {
             throw new ColumnNotExistsException(format("column '%s' not exists", columnName));
         }
-        return get(index);
+        return getComparable(index);
     }
 
     @Override

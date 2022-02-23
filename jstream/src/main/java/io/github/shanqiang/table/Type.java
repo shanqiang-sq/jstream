@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.sql.JDBCType;
 
 public enum Type {
-    VARCHAR,
+    VARBYTE,
     INT,
     BIGINT,
     DOUBLE,
@@ -34,7 +34,7 @@ public enum Type {
             return DOUBLE;
         }
         if (clazz == ByteArray.class || clazz == String.class) {
-            return VARCHAR;
+            return VARBYTE;
         }
         if (clazz == BigDecimal.class) {
             return BIGDECIMAL;
@@ -45,7 +45,7 @@ public enum Type {
 
     public static JDBCType toJDBCType(Type type) {
         switch (type) {
-            case VARCHAR:
+            case VARBYTE:
             case BIGDECIMAL:
                 return JDBCType.VARCHAR;
             case INT:

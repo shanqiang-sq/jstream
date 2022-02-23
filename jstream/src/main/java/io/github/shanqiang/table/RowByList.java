@@ -29,17 +29,17 @@ public class RowByList extends AbstractRow {
     }
 
     @Override
-    public Comparable get(int index) {
-        return ifStr(row.get(index));
+    public Comparable getComparable(int index) {
+        return row.get(index);
     }
 
     @Override
-    public Comparable get(String columnName) {
+    public Comparable getComparable(String columnName) {
         Integer index = columnName2Index.get(columnName);
         if (null == index) {
             throw new ColumnNotExistsException(format("column '%s' not exists", columnName));
         }
-        return get(index);
+        return getComparable(index);
     }
 
     @Override

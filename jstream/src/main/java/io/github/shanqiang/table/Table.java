@@ -190,7 +190,7 @@ public class Table {
     public void append(Table table, int row) {
         for (int i = 0; i < columns.size(); i++) {
             Column column = table.getColumn(i);
-            if (column.getType() == Type.VARCHAR) {
+            if (column.getType() == Type.VARBYTE) {
                 columns.get(i).addOffheap(column.getOffheap(row));
             } else {
                 columns.get(i).add(column.get(row));

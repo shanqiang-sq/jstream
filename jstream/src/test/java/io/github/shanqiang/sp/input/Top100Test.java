@@ -89,7 +89,7 @@ public class Top100Test {
                 Duration.ofHours(1),
                 new ColumnTypeBuilder()
                         .column("id", Type.INT)
-                        .column("name", Type.VARCHAR)
+                        .column("name", Type.VARBYTE)
                         .column("price", Type.INT)
                         .build(),
                 "id"

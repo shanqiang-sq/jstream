@@ -21,28 +21,17 @@ public class RowByTable extends AbstractRow {
     }
 
     @Override
-    public Comparable[] getAll() {
-        int len = size();
-        Comparable[] comparables = new Comparable[len];
-        for (int i = 0; i < len; i++) {
-            comparables[i] = get(i);
-        }
-
-        return comparables;
+    public Comparable getComparable(int index) {
+        return table.getColumn(index).get(row);
     }
 
     @Override
-    public Comparable get(int index) {
-        return ifStr(table.getColumn(index).get(row));
-    }
-
-    @Override
-    public Comparable get(String columnName) {
+    public Comparable getComparable(String columnName) {
         Integer index = table.getIndex(columnName);
         if (null == index) {
             throw new ColumnNotExistsException(format("column '%s' not exists", columnName));
         }
-        return get(index);
+        return getComparable(index);
     }
 
     @Override

@@ -122,7 +122,7 @@ public class MysqlOutputTable extends AbstractOutputTable {
         StringBuilder fieldsBuilder = new StringBuilder();
         for (String columnName : columnTypeMap.keySet()) {
             Type type = columnTypeMap.get(columnName);
-            if (type == Type.VARCHAR) {
+            if (type == Type.VARBYTE) {
                 fieldsBuilder.append(columnName).append(" ").append("longtext").append(",");
             } else {
                 fieldsBuilder.append(columnName).append(" ").append(type).append(",");
@@ -185,7 +185,7 @@ public class MysqlOutputTable extends AbstractOutputTable {
             for (Type type : columnTypeMap.values()) {
                 Object object = objectList.get(i);
                 switch (type) {
-                    case VARCHAR:
+                    case VARBYTE:
                         if (null == object) {
                             preparedStatement.setNull(i + 1, Types.VARCHAR);
                             break;

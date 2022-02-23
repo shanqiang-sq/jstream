@@ -21,7 +21,7 @@ public class KafkaStreamTableTest {
     @Test
     public void produceThenConsume() throws InterruptedException {
         Map<String, Type> columnTypeMap = new ColumnTypeBuilder()
-                .column("testColumnVarchar", Type.VARCHAR)
+                .column("testColumnVarchar", Type.VARBYTE)
                 .column("testColumnInt", Type.INT)
                 .column("testColumnBigint", Type.BIGINT)
                 .column("testColumnDouble", Type.DOUBLE)
@@ -43,7 +43,7 @@ public class KafkaStreamTableTest {
         kafkaOutputTable.produce(table);
 
         columnTypeMap = new ColumnTypeBuilder()
-                .column("testColumnVarchar", Type.VARCHAR)
+                .column("testColumnVarchar", Type.VARBYTE)
                 .column("testColumnInt", Type.INT)
                 .column("testColumnBigint", Type.BIGINT)
                 .column("__time__", Type.BIGINT)

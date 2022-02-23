@@ -62,7 +62,7 @@ public class TableBuilder {
         Type type = columns.get(index).getType();
 
         Comparable comparable;
-        if (type != Type.VARCHAR) {
+        if (type != Type.VARBYTE) {
             String string = new String(value.getBytes(), value.getOffset(), value.getLength());
             string = string.trim();
             switch (type) {

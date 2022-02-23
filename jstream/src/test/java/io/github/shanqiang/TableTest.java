@@ -49,7 +49,7 @@ public class TableTest {
     @Test
     public void serializeVarchar() {
         TableBuilder tableBuilder = new TableBuilder(new ColumnTypeBuilder().
-                column("str", Type.VARCHAR).
+                column("str", Type.VARBYTE).
                 column("long", Type.BIGINT).
                 build());
         tableBuilder.append(0, "1L");

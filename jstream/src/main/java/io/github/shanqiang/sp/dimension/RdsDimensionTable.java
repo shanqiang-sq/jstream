@@ -106,7 +106,7 @@ public abstract class RdsDimensionTable extends DimensionTable {
                                         case DOUBLE:
                                             tableBuilder.append(i, resultSet.getDouble(i1));
                                             break;
-                                        case VARCHAR:
+                                        case VARBYTE:
                                             tableBuilder.append(i, resultSet.getString(i1));
                                             break;
                                         default:

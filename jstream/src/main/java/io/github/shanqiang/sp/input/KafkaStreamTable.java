@@ -109,7 +109,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
         }
     }
 
-    private void newConsumer(TopicPartition topicPartition, OffsetAndTimestamp offsetAndTimestamp) {
+    protected void newConsumer(TopicPartition topicPartition, OffsetAndTimestamp offsetAndTimestamp) {
         if (topicPartition.partition() % serverCount != myHash) {
             return;
         }
@@ -167,7 +167,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
                                             case INT:
                                                 tableBuilder.append(i, jsonElement.getAsInt());
                                                 break;
-                                            case VARCHAR:
+                                            case VARBYTE:
                                                 tableBuilder.append(i, jsonElement.getAsString());
                                                 break;
                                             default:

@@ -132,7 +132,7 @@ public class Column<T extends Comparable> implements Serializable {
                 case BIGINT:
                     this.column = new LongColumn();
                     break;
-                case VARCHAR:
+                case VARBYTE:
                     this.column = new VarbyteColumn();
                     break;
                 case INT:
@@ -160,7 +160,7 @@ public class Column<T extends Comparable> implements Serializable {
             case BIGINT:
                 this.column = new LongColumn(this.initSize);
                 break;
-            case VARCHAR:
+            case VARBYTE:
                 this.column = new VarbyteColumn(this.initSize);
                 break;
             case BIGDECIMAL:
@@ -199,7 +199,7 @@ public class Column<T extends Comparable> implements Serializable {
 
     void addOffheap(VarbyteBufferOffheap.Offheap offheap) {
         if (null == column) {
-            initType(Type.VARCHAR);
+            initType(Type.VARBYTE);
         }
         ((VarbyteColumn) column).addOffheap(offheap);
     }

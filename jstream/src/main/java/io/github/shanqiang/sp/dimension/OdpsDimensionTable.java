@@ -134,7 +134,7 @@ public class OdpsDimensionTable extends DimensionTable {
                                         case DOUBLE:
                                             tableBuilder.append(i, record.getDouble(columnName));
                                             break;
-                                        case VARCHAR:
+                                        case VARBYTE:
                                             tableBuilder.append(i, record.getString(columnName));
                                             break;
                                         default:
