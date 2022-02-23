@@ -23,7 +23,7 @@ public class WindowUtil {
         TreeMap<Comparable, List<Integer>> treeMap = new TreeMap<>();
         for (int i = 0; i < rows.size(); i++) {
             Row row = rows.get(i);
-            Comparable comparable = row.get(columnName);
+            Comparable comparable = row.getComparable(columnName);
             if (size < n) {
                 putTreeMap(treeMap, comparable, i);
                 size++;

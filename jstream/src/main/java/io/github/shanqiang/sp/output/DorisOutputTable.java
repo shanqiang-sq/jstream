@@ -6,6 +6,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mysql.cj.jdbc.MysqlDataSource;
+import io.github.shanqiang.exception.UnknownTypeException;
 import io.github.shanqiang.offheap.ByteArray;
 import io.github.shanqiang.sp.QueueSizeLogger;
 import io.github.shanqiang.table.Column;
@@ -179,9 +180,8 @@ public class DorisOutputTable extends AbstractOutputTable {
     private Connection connect() throws SQLException {
         MysqlDataSource mysqlDataSource = new MysqlDataSource();
         //jdbc:mysql://[host1][:port1],[host2][:port2][,[host3][:port3]]...[/[database]][?propertyName1=propertyValue1[&propertyName2=propertyValue2]...]
-        String jdbcUrl = "jdbc:mysql://" + jdbcHostPorts;
+        String jdbcUrl = format("jdbc:mysql://%s/%s", jdbcHostPorts, database);
         mysqlDataSource.setUrl(jdbcUrl);
-        mysqlDataSource.setDatabaseName(database);
         mysqlDataSource.setUser(user);
         mysqlDataSource.setPassword(password);
         mysqlDataSource.setAutoReconnect(true);
@@ -189,12 +189,28 @@ public class DorisOutputTable extends AbstractOutputTable {
         return mysqlDataSource.getConnection();
     }
 
+    private static String toDorisType(Type type) {
+        switch (type) {
+            case VARBYTE:
+            case BIGDECIMAL:
+                return "STRING";
+//                return "VARCHAR(65533)";
+            case INT:
+                return "INT";
+            case BIGINT:
+                return "BIGINT";
+            case DOUBLE:
+                return "DOUBLE";
+            default:
+                throw new UnknownTypeException(null == type ? "null" : type.name());
+        }
+    }
+
     private void createTable() throws IOException {
         StringBuilder fieldsBuilder = new StringBuilder();
         for (String columnName : columnTypeMap.keySet()) {
             Type type = columnTypeMap.get(columnName);
-            JDBCType jdbcType = Type.toJDBCType(type);
-            fieldsBuilder.append(columnName).append(" ").append(jdbcType).append(",");
+            fieldsBuilder.append(columnName).append(" ").append(toDorisType(type)).append(",");
         }
 
         String fieldsSchema = fieldsBuilder.toString();

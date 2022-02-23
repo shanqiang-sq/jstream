@@ -128,8 +128,8 @@ public class TableTest {
 
         Table table1 = table.select((Row row) -> {
             return new Comparable[]{
-                    row.get("c1"),
-                    row.get("cn"),
+                    row.getComparable("c1"),
+                    row.getComparable("cn"),
                     ScalarUtil.substr(row.getString("ss"), 0, 2)
             };
         }, false, "c1", "count", "group_concat");
@@ -208,7 +208,7 @@ public class TableTest {
 
         Index finalIndex = table2.createIndex("c3");
         Table table = table1.leftJoin(table2, (Row row) -> {
-            return finalIndex.get(new Comparable[]{row.get("c1")});
+            return finalIndex.get(new Comparable[]{row.getComparable("c1")});
         }, new As().build(), new As().as("c3", "t2_c1").as("c4", "t2_c2").build());
         assert table.size() == 6;
         assert table.getColumn(3) != null;
@@ -220,13 +220,13 @@ public class TableTest {
         table.print();
 
         table = table1.innerJoin(table2, (Row row) -> {
-            return finalIndex.get(new Comparable[]{row.get("c1")});
+            return finalIndex.get(new Comparable[]{row.getComparable("c1")});
         }, new As().build(), new As().build());
         assert table.size() == 5;
         table.print();
 
         table = table1.outerJoin(table2, (Row row) -> {
-            return finalIndex.get(new Comparable[]{row.get("c1")});
+            return finalIndex.get(new Comparable[]{row.getComparable("c1")});
         }, new As().build(), new As().build());
         assert table.size() == 7;
         table.print();

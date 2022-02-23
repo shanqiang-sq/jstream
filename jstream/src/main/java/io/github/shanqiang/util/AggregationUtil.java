@@ -8,7 +8,7 @@ public class AggregationUtil {
     public static String groupConcat(List<Row> rows, String columnName) {
         StringBuilder sb = new StringBuilder();
         for (Row row : rows) {
-            sb.append(row.get(columnName));
+            sb.append(row.getComparable(columnName));
             sb.append(',');
         }
         return sb.length() > 0 ? sb.deleteCharAt(sb.length() - 1).toString() : sb.toString();
@@ -17,7 +17,7 @@ public class AggregationUtil {
     public static int sumInt(List<Row> rows, String columnName) {
         int ret = 0;
         for (Row row : rows) {
-            Integer i = (Integer) row.get(columnName);
+            Integer i = (Integer) row.getComparable(columnName);
             if (null == i) {
                 continue;
             }
@@ -30,7 +30,7 @@ public class AggregationUtil {
     public static double sumLong(List<Row> rows, String columnName) {
         double ret = 0;
         for (Row row : rows) {
-            Long l = (Long) row.get(columnName);
+            Long l = (Long) row.getComparable(columnName);
             if (null == l) {
                 continue;
             }
@@ -43,7 +43,7 @@ public class AggregationUtil {
     public static double sumDouble(List<Row> rows, String columnName) {
         double ret = 0;
         for (Row row : rows) {
-            Number n = (Number) row.get(columnName);
+            Number n = (Number) row.getComparable(columnName);
             if (null == n) {
                 continue;
             }
@@ -56,7 +56,7 @@ public class AggregationUtil {
     public static Comparable max(List<Row> rows, String columnName) {
         Comparable ret = null;
         for (Row row : rows) {
-            Comparable comparable = row.get(columnName);
+            Comparable comparable = row.getComparable(columnName);
             if (null == comparable) {
                 continue;
             }

@@ -425,7 +425,7 @@ public class Table {
         }
         for (Row row : rows) {
             for (int i = 0; i < columnSize; i++) {
-                columns.get(i).add(row.get(i));
+                columns.get(i).add(row.getComparable(i));
             }
         }
         return new Table(columns);

@@ -42,20 +42,4 @@ public enum Type {
 
         throw new UnknownTypeException(object.getClass().getName());
     }
-
-    public static JDBCType toJDBCType(Type type) {
-        switch (type) {
-            case VARBYTE:
-            case BIGDECIMAL:
-                return JDBCType.VARCHAR;
-            case INT:
-                return JDBCType.INTEGER;
-            case BIGINT:
-                return JDBCType.BIGINT;
-            case DOUBLE:
-                return JDBCType.DOUBLE;
-            default:
-                throw new UnknownTypeException(null == type ? "null" : type.name());
-        }
-    }
 }

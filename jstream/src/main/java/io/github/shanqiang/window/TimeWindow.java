@@ -171,7 +171,7 @@ public class TimeWindow extends Window {
             int j = 0;
             int preColumnCount = rows.get(i).size();
             for (; j < preColumnCount; j++) {
-                retTable.appendValue(j, rows.get(i).get(j));
+                retTable.appendValue(j, rows.get(i).getComparable(j));
             }
             for (; j < retTable.columnSize(); j++) {
                 if (null == comparablesList ||
