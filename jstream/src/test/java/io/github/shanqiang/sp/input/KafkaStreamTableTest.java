@@ -47,6 +47,7 @@ public class KafkaStreamTableTest {
                 .column("testColumnInt", Type.INT)
                 .column("testColumnBigint", Type.BIGINT)
                 .column("__time__", Type.BIGINT)
+                .column("__receive_time__", Type.BIGINT)
                 .column("testColumnDouble", Type.DOUBLE)
                 .build();
         KafkaStreamTable kafkaStreamTable = new KafkaStreamTable(bootstrapServers,
@@ -68,10 +69,43 @@ public class KafkaStreamTableTest {
         Thread.sleep(1_000);
         table = kafkaStreamTable.consume();
 
+        assert table.getColumn("__receive_time__").getLong(0)
+                >=
+                table.getColumn("__time__").getLong(0);
         assert table.getColumn(0).getString(0).equals("c1v1");
         assert table.getColumn(1).getInteger(0).equals(1);
         assert table.getColumn(2).getLong(0).equals(Long.MAX_VALUE);
         assert table.getColumn(0).getString(1) == null;
-        assert table.getColumn(4).getDouble(1) == Double.MIN_VALUE;
+        assert table.getColumn(5).getDouble(1) == Double.MIN_VALUE;
+
+        columnTypeMap = new ColumnTypeBuilder()
+                .column("ts", Type.BIGINT)
+                .column("key", Type.BIGINT)
+                .column("value", Type.VARBYTE)
+                .build();
+        KafkaStreamTableExt kafkaStreamTableExt = new KafkaStreamTableExt(bootstrapServers,
+                "consumerGroupId",
+                topic,
+                "org.apache.kafka.common.serialization.LongDeserializer",
+                "org.apache.kafka.common.serialization.StringDeserializer",
+                new Calendar.Builder().
+                        setDate(2021, 9, 17).
+                        setTimeOfDay(11, 3, 0).
+                        build().
+                        getTimeInMillis(),
+                new Calendar.Builder().
+                        setDate(2021, 9, 17).
+                        setTimeOfDay(11, 3, 0).
+                        build().
+                        getTimeInMillis(),
+                columnTypeMap);
+        kafkaStreamTableExt.start();
+        table = kafkaStreamTableExt.consume();
+        Thread.sleep(1_000);
+        table = kafkaStreamTableExt.consume();
+
+        assert table.getColumn("ts").getLong(0)
+                >=
+                table.getColumn("key").getLong(0);
     }
 }

@@ -19,6 +19,7 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
     private static final Logger logger = LoggerFactory.getLogger(KafkaStreamTableExt.class);
 
     /**
+     * 消费到的表结构：第一列timestamp 第二列key 第三列value
      * @param bootstrapServers
      * @param consumerGroupId
      * @param topic
@@ -72,8 +73,9 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
                         TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
                         for (Object obj : records) {
                             ConsumerRecord record = (ConsumerRecord) obj;
-                            tableBuilder.appendValue(0, record.key());
-                            tableBuilder.appendValue(1, record.value());
+                            tableBuilder.append(0, record.timestamp());
+                            tableBuilder.appendValue(1, record.key());
+                            tableBuilder.appendValue(2, record.value());
                         }
                         queueSizeLogger.logQueueSize("input queue size" + kafkaStreamTable.sign, arrayBlockingQueueList);
                         recordSizeLogger.logRecordSize("input queue rows" + kafkaStreamTable.sign, arrayBlockingQueueList);

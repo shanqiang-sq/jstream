@@ -67,7 +67,7 @@ public class KafkaOutputTable extends AbstractOutputTable {
         this.topic = requireNonNull(topic);
         Properties properties = new Properties();
         properties.put(BOOTSTRAP_SERVERS_CONFIG, requireNonNull(bootstrapServers));
-        properties.put(KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.IntegerSerializer");
+        properties.put(KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.LongSerializer");
         properties.put(VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer");
         this.properties = properties;
         this.batchSize = batchSize;
@@ -116,14 +116,13 @@ public class KafkaOutputTable extends AbstractOutputTable {
                 public void run() {
                     Properties tmp = (Properties) properties.clone();
                     tmp.put(CLIENT_ID_CONFIG, getIp() + "-" + finalI);
-                    Producer<Integer, String> producer = new KafkaProducer(tmp);
+                    Producer<Long, String> producer = new KafkaProducer(tmp);
                     while (!Thread.interrupted()) {
                         try {
                             Table table = consume();
                             List<Column> columns = table.getColumns();
 
                             long now = System.currentTimeMillis();
-                            int nowInt = (int) (now / 1000);
                             for (int i = 0; i < table.size(); i++) {
                                 JsonObject jsonObject = new JsonObject();
                                 for (int j = 0; j < columns.size(); j++) {
@@ -139,22 +138,20 @@ public class KafkaOutputTable extends AbstractOutputTable {
                                         } else {
                                             if (__time__.equals(key)) {
                                                 now = (long) comparable;
-                                                nowInt = (int) (now / 1000);
                                             } else {
                                                 jsonObject.addProperty(key, (Number) comparable);
                                             }
                                         }
                                     }
                                 }
-                                ProducerRecord<Integer, String> producerRecord = new ProducerRecord<>(topic,
+                                ProducerRecord<Long, String> producerRecord = new ProducerRecord<>(topic,
                                         allPartitions[random.nextInt(allPartitions.length)],
-                                        nowInt,
+                                        now,
                                         jsonObject.toString());
                                 producer.send(producerRecord);
                                 if (i > 0 && i % batchSize == 0) {
                                     producer.flush();
                                     now = System.currentTimeMillis();
-                                    nowInt = (int) (now / 1000);
                                 }
                             }
 

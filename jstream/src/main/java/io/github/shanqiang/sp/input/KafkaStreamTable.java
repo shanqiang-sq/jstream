@@ -59,6 +59,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
     private final ScheduledExecutorService partitionsDetector;
     protected final List<Thread> consumers = new ArrayList<>();
     private final int timeColumnIndex;
+    private final int receiveTimeColumnIndex;
     private final List<String> stringColumns;
     private final List<Type> types;
     private long finishDelayMs = 30000;
@@ -92,7 +93,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
                             long consumeTo,
                             Map<String, Type> columnTypeMap) {
         this(bootstrapServers, consumerGroupId, topic,
-                "org.apache.kafka.common.serialization.IntegerDeserializer",
+                "org.apache.kafka.common.serialization.LongDeserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer",
                 consumeFrom, -1, columnTypeMap);
     }
@@ -126,6 +127,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
         stringColumns = new ArrayList<>(columns.size());
         types = new ArrayList<>(columns.size());
         timeColumnIndex = columns.indexOf(__time__);
+        receiveTimeColumnIndex = columns.indexOf(__receive_time__);
         for (ByteArray column : columns) {
             String columnName = column.toString();
             stringColumns.add(columnName);
@@ -148,7 +150,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
-                Consumer<Integer, String> consumer = new KafkaConsumer<>(properties);
+                Consumer<Long, String> consumer = new KafkaConsumer<>(properties);
                 consumer.assign(asList(topicPartition));
                 if (null == offsetAndTimestamp) {
                     consumer.seekToBeginning(asList(topicPartition));
@@ -159,13 +161,13 @@ public class KafkaStreamTable extends AbstractStreamTable {
                 Gson gson = new Gson();
                 while (!Thread.interrupted()) {
                     try {
-                        ConsumerRecords<Integer, String> records = consumer.poll(Duration.ofMillis(sleepMs));
+                        ConsumerRecords<Long, String> records = consumer.poll(Duration.ofMillis(sleepMs));
                         if (records.isEmpty()) {
                             continue;
                         }
                         TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
-                        for (ConsumerRecord<Integer, String> record : records) {
-                            Integer time = record.key();
+                        for (ConsumerRecord<Long, String> record : records) {
+                            Long time = record.key();
                             if (-1 != consumeTo && time >= consumeTo) {
                                 kafkaStreamTable.removePartition(topicPartition.partition());
                                 return;
@@ -174,7 +176,9 @@ public class KafkaStreamTable extends AbstractStreamTable {
                             JsonObject jsonObject = gson.fromJson(value, JsonObject.class);
                             for (int i = 0; i < stringColumns.size(); i++) {
                                 if (i == timeColumnIndex) {
-                                    tableBuilder.append(i, time * 1000L);
+                                    tableBuilder.append(i, time);
+                                } else if (i == receiveTimeColumnIndex) {
+                                    tableBuilder.append(i, record.timestamp());
                                 } else {
                                     JsonElement jsonElement = jsonObject.get(stringColumns.get(i));
                                     if (null == jsonElement || jsonElement.isJsonNull()) {
