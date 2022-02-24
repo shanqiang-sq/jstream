@@ -2,6 +2,7 @@ package io.github.shanqiang.sp.input;
 
 import io.github.shanqiang.exception.UnknownTypeException;
 import io.github.shanqiang.offheap.ByteArray;
+import io.github.shanqiang.sp.Delay;
 import io.github.shanqiang.table.TableBuilder;
 import io.github.shanqiang.table.Type;
 import com.google.gson.Gson;
@@ -52,7 +53,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
     private final String topic;
     protected final String sign;
     private final long consumeFrom;
-    private final long consumeTo;
+    protected final long consumeTo;
     protected final int myHash;
     protected final int serverCount;
     protected final Set<Integer> myPartitions = new HashSet<>();
@@ -172,6 +173,12 @@ public class KafkaStreamTable extends AbstractStreamTable {
                                 kafkaStreamTable.removePartition(topicPartition.partition());
                                 return;
                             }
+
+                            long now = System.currentTimeMillis();
+                            Delay.DELAY.log("business-delay" + kafkaStreamTable.sign, time);
+                            Delay.DELAY.log("data-interval" + kafkaStreamTable.sign, now);
+                            Delay.RESIDENCE_TIME.log("data-residence-time" + kafkaStreamTable.sign, now - time);
+
                             String value = record.value();
                             JsonObject jsonObject = gson.fromJson(value, JsonObject.class);
                             for (int i = 0; i < stringColumns.size(); i++) {
@@ -226,7 +233,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
         lastUpdateMs = System.currentTimeMillis();
     }
 
-    private synchronized void removePartition(int partition) {
+    protected synchronized void removePartition(int partition) {
         partitionSet.remove(partition);
         partitionSetSize = partitionSet.size();
         lastUpdateMs = System.currentTimeMillis();

@@ -1,6 +1,7 @@
 package io.github.shanqiang.sp.input;
 
 import com.google.gson.Gson;
+import io.github.shanqiang.sp.Delay;
 import io.github.shanqiang.table.TableBuilder;
 import io.github.shanqiang.table.Type;
 import org.apache.kafka.clients.consumer.*;
@@ -73,7 +74,19 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
                         TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
                         for (Object obj : records) {
                             ConsumerRecord record = (ConsumerRecord) obj;
-                            tableBuilder.append(0, record.timestamp());
+
+                            Long receiveTime = record.timestamp();
+                            if (-1 != consumeTo && receiveTime >= consumeTo) {
+                                kafkaStreamTable.removePartition(topicPartition.partition());
+                                return;
+                            }
+
+                            long now = System.currentTimeMillis();
+                            Delay.DELAY.log("business-delay" + kafkaStreamTable.sign, receiveTime);
+                            Delay.DELAY.log("data-interval" + kafkaStreamTable.sign, now);
+                            Delay.RESIDENCE_TIME.log("data-residence-time" + kafkaStreamTable.sign, now - receiveTime);
+
+                            tableBuilder.append(0, receiveTime);
                             tableBuilder.appendValue(1, record.key());
                             tableBuilder.appendValue(2, record.value());
                         }
