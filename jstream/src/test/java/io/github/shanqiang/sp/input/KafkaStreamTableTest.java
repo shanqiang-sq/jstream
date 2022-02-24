@@ -59,7 +59,7 @@ public class KafkaStreamTableTest {
                         build().
                         getTimeInMillis(),
                 new Calendar.Builder().
-                        setDate(2021, 9, 17).
+                        setDate(9999, 9, 17).
                         setTimeOfDay(11, 3, 0).
                         build().
                         getTimeInMillis(),
@@ -94,7 +94,7 @@ public class KafkaStreamTableTest {
                         build().
                         getTimeInMillis(),
                 new Calendar.Builder().
-                        setDate(2021, 9, 17).
+                        setDate(9999, 9, 17).
                         setTimeOfDay(11, 3, 0).
                         build().
                         getTimeInMillis(),

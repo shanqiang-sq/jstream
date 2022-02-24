@@ -96,7 +96,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
         this(bootstrapServers, consumerGroupId, topic,
                 "org.apache.kafka.common.serialization.LongDeserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer",
-                consumeFrom, -1, columnTypeMap);
+                consumeFrom, consumeTo, columnTypeMap);
     }
 
     protected KafkaStreamTable(String bootstrapServers,
