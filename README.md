@@ -24,7 +24,7 @@ Computes the last hour top 100 sales volume ranking list every half hour
 <dependency>
     <groupId>io.github.shanqiang-sq</groupId>
     <artifactId>jstream</artifactId>
-	<version>1.0.15</version>
+    <version>1.0.15</version>
 </dependency>
 ```
 
