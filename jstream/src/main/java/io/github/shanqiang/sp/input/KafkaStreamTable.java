@@ -48,16 +48,16 @@ import static org.apache.kafka.clients.producer.ProducerConfig.BOOTSTRAP_SERVERS
 public class KafkaStreamTable extends AbstractStreamTable {
     private static final Logger logger = LoggerFactory.getLogger(KafkaStreamTable.class);
 
-    private final Properties properties;
+    protected final Properties properties;
     private final String topic;
-    private final String sign;
+    protected final String sign;
     private final long consumeFrom;
     private final long consumeTo;
-    private final int myHash;
-    private final int serverCount;
-    private final Set<Integer> myPartitions = new HashSet<>();
+    protected final int myHash;
+    protected final int serverCount;
+    protected final Set<Integer> myPartitions = new HashSet<>();
     private final ScheduledExecutorService partitionsDetector;
-    private final List<Thread> consumers = new ArrayList<>();
+    protected final List<Thread> consumers = new ArrayList<>();
     private final int timeColumnIndex;
     private final List<String> stringColumns;
     private final List<Type> types;
@@ -75,19 +75,43 @@ public class KafkaStreamTable extends AbstractStreamTable {
         this(bootstrapServers, consumerGroupId, topic, consumeFrom, -1, columnTypeMap);
     }
 
+    /**
+     * key是kafka客户端写kafka的时间（int型，秒），kafka服务端的timestamp是接收到数据的时间据此也可评估写入latency
+     * value是一个json格式的字符串
+     * @param bootstrapServers
+     * @param consumerGroupId
+     * @param topic
+     * @param consumeFrom
+     * @param consumeTo
+     * @param columnTypeMap
+     */
     public KafkaStreamTable(String bootstrapServers,
                             String consumerGroupId,
                             String topic,
                             long consumeFrom,
                             long consumeTo,
                             Map<String, Type> columnTypeMap) {
+        this(bootstrapServers, consumerGroupId, topic,
+                "org.apache.kafka.common.serialization.IntegerDeserializer",
+                "org.apache.kafka.common.serialization.StringDeserializer",
+                consumeFrom, -1, columnTypeMap);
+    }
+
+    protected KafkaStreamTable(String bootstrapServers,
+                               String consumerGroupId,
+                               String topic,
+                               String keyDeserializer,
+                               String valueDeserializer,
+                               long consumeFrom,
+                               long consumeTo,
+                               Map<String, Type> columnTypeMap) {
         super(0, columnTypeMap);
         this.topic = requireNonNull(topic);
         Properties properties = new Properties();
         properties.put(BOOTSTRAP_SERVERS_CONFIG, requireNonNull(bootstrapServers));
         properties.put(GROUP_ID_CONFIG, requireNonNull(consumerGroupId));
-        properties.put(KEY_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.IntegerDeserializer");
-        properties.put(VALUE_DESERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringDeserializer");
+        properties.put(KEY_DESERIALIZER_CLASS_CONFIG, keyDeserializer);
+        properties.put(VALUE_DESERIALIZER_CLASS_CONFIG, valueDeserializer);
         properties.put(MAX_POLL_RECORDS_CONFIG, 40000);
         properties.put(ENABLE_AUTO_COMMIT_CONFIG, "true");
         properties.put(AUTO_OFFSET_RESET_CONFIG, "none");
@@ -192,7 +216,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
         consumers.add(thread);
     }
 
-    private synchronized void addPartition(int partition) {
+    protected synchronized void addPartition(int partition) {
         partitionSet.add(partition);
         partitionSetSize = partitionSet.size();
         lastUpdateMs = System.currentTimeMillis();
