@@ -1,17 +1,17 @@
-# Table-Computing 
+# JStream 
 
-Welcome to the Table-Computing GitHub.
+Welcome to the JStream GitHub.
 
-Table-Computing (Simplified as TC) is a distributed light weighted, high performance and low latency stream processing and data analysis framework.
+JStream is a distributed light weighted, high performance and low latency stream processing and data analysis framework.
 Relational operation, simple to use, write less and do more.
-From our using experience TC can achieve milliseconds latency and 10+ times faster than Flink for complicated use cases.
-For the same streaming task we use TC achieved 10+ times computing resource saving.
+From our using experience JStream can achieve milliseconds latency and 10+ times faster than Flink for complicated use cases.
+For the same streaming task we use JStream achieved 10+ times computing resource saving.
 
 ## Why we develop this framework 
 Relational operation is an effective tool to process and analyze data, SQL is a widely used implementation of relational operation. 
 But SQL is not Turing-compete, we need UDF/Stored-procedure/UDAF/UDTF etc. to solve complicated business scenario. 
 If we need complicated WHERE criteria, JOIN criteria, a new Scalar Function, Transform Function, Aggregation Function, Window Function etc. we cannot use SQL easily do this.
-SQL is also not very efficient for complicated case, whether SQL can high-powered execute depend on the SQL plan optimizer has optimized the use case which we 
+SQL is also not very efficient for complicated case, whether SQL can high-powered execute depend on if the SQL plan optimizer has optimized that use case which we 
 are using in the complicated business scenario. But more complicated scenario more difficult to guarantee every SQL use case had been optimized by the optimizer.
 Besides SQL that we can also use Flink DataStream/DataSet but we need very long code to implement a complex data processing task and we also need 
 to design the Execution-graph this is a complex art we need compound the operator or disjoint them then observe whether the adjusted graph is more efficient 
@@ -22,9 +22,9 @@ of operators which have lots of combinations, trying those maybe-efficient combi
 Computes the last hour top 100 sales volume ranking list every half hour
 ```
 <dependency>
-    <groupId>com.alibaba</groupId>
-    <artifactId>table-computing</artifactId>
-    <version>1.0.0</version>
+    <groupId>io.github.shanqiang-sq</groupId>
+    <artifactId>jstream</artifactId>
+	<version>1.0.15</version>
 </dependency>
 ```
 
@@ -132,9 +132,9 @@ sp.compute(new Compute() {
 ```
 Distributed deploy your table-computing task:
 
-java -Dself=localhost:8888 -Dall=localhost:8888,localhost:9999 -jar my_task.jar -cp table-computing-1.0.0.jar;my_other_dependencies...
+java -Dself=localhost:8888 -Dall=localhost:8888,localhost:9999 -jar my_task.jar
 
-java -Dself=localhost:9999 -Dall=localhost:8888,localhost:9999 -jar my_task.jar -cp table-computing-1.0.0.jar;my_other_dependencies...
+java -Dself=localhost:9999 -Dall=localhost:8888,localhost:9999 -jar my_task.jar
 
 
 
@@ -142,15 +142,15 @@ java -Dself=localhost:9999 -Dall=localhost:8888,localhost:9999 -jar my_task.jar 
 1. Use only 1 thread concurrency to test the 1 thread throughput, then use upstream data volume divide 1 thread throughput to get the
  StreamProcessing concurrent thread number. The thread number should not be too large since thread race will lead to unnecessary
  resource consumption which maybe give rise to OOM (no enough CPU time to release the unused memory)
-2. -Xmx parameter should be appropriate. Since the table data are all store on the off-heap memory to improve performance too large
- -Xmx will lead to belatedly memory release which may give rise to OOM, while too small -Xmx will lead to too frequently GC to reduce 
+2. -Xmx parameter should be appropriate. Since the table data are all store on the off-heap memory with a heap memory handle to improve performance, too large
+ -Xmx will lead to belatedly heap memory handle release which may give rise to OOM, while too small -Xmx will lead to too frequently GC to reduce 
  the throughput.
 3. Not only the old GC stop the world young GC also stop the world transiently, more threads means more garbage generation
- means more GC means more often STW means thread CPU usage cannot be raised, you may find use more StreamProcessing 
- thread cannot increase the throughput now you should start a new JVM (can be on the same machine use localhost:anotherPort). 
- Actually use N thread can not get N times throughput you may need start a new JVM, you can also use `top -H -p pid` to 
- see whether the compute-X named threads CPU usage approximate 100% to make your decision. 
-
+ means more GC means more often STW means thread CPU usage cannot be raised, you may find that use more StreamProcessing 
+ thread cannot increase the throughput in this case you should start a new JVM (can be on the same machine use localhost:anotherPort). 
+ Actually use N thread can not get N times throughput, you may need start a new JVM, you can also use `top -H -p pid` to 
+ see whether the CPU usage of compute-X named threads approximate 100% to make your decision. 
+   
 
 
 ## Notice：
@@ -161,4 +161,4 @@ java -Dself=localhost:9999 -Dall=localhost:8888,localhost:9999 -jar my_task.jar 
 
 
 ## Copyright and License
-Table-Computing is provided under the [Apache-2.0 license](LICENSE).
+JStream is provided under the [Apache-2.0 license](LICENSE).
