@@ -114,13 +114,18 @@ public class TableBuilder {
         return this;
     }
 
-    public TableBuilder appendValue(int index, Comparable value) {
+    public TableBuilder appendValue(int index, Object value) {
         if (null == value) {
             columns.get(index).add(null);
             return this;
         }
 
-        columns.get(index).add(value);
+        if (value.getClass() == byte[].class) {
+            columns.get(index).add(new ByteArray((byte[]) value));
+        } else {
+            columns.get(index).add((Comparable) value);
+        }
+
         return this;
     }
 

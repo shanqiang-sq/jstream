@@ -72,8 +72,8 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
                         TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
                         for (Object obj : records) {
                             ConsumerRecord record = (ConsumerRecord) obj;
-                            tableBuilder.appendValue(0, (Comparable) record.key());
-                            tableBuilder.appendValue(1, (Comparable) record.value());
+                            tableBuilder.appendValue(0, record.key());
+                            tableBuilder.appendValue(1, record.value());
                         }
                         queueSizeLogger.logQueueSize("input queue size" + kafkaStreamTable.sign, arrayBlockingQueueList);
                         recordSizeLogger.logRecordSize("input queue rows" + kafkaStreamTable.sign, arrayBlockingQueueList);
