@@ -1,13 +1,13 @@
 package io.github.shanqiang.sp.output;
 
-import io.github.shanqiang.offheap.ByteArray;
-import io.github.shanqiang.sp.QueueSizeLogger;
-import io.github.shanqiang.table.Column;
-import io.github.shanqiang.table.Table;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.JsonObject;
 import io.github.shanqiang.Threads;
+import io.github.shanqiang.offheap.ByteArray;
+import io.github.shanqiang.sp.QueueSizeLogger;
 import io.github.shanqiang.sp.StreamProcessing;
+import io.github.shanqiang.table.Column;
+import io.github.shanqiang.table.Table;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -34,6 +34,16 @@ import static org.apache.kafka.clients.producer.ProducerConfig.CLIENT_ID_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG;
 import static org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG;
 
+/**
+ * 下面两个kafka配置文件里
+ * config/server.properties
+ * config/kraft/broker.properties
+ * 加入下面这行配置message的时间戳将变成kafka服务端append这条消息的时间，相当于接收时间
+ * log.message.timestamp.type=LogAppendTime
+ * 如果是下面这个配置
+ * log.message.timestamp.type=CreateTime
+ * 将以ProducerRecord里的timestamp为准，ProducerRecord里没有给timestamp的情况下将以客户端的当前时间为准，相当于客户端发往服务端的发送时间
+ */
 public class KafkaOutputTable extends AbstractOutputTable {
     private static final Logger logger = LoggerFactory.getLogger(KafkaOutputTable.class);
 
