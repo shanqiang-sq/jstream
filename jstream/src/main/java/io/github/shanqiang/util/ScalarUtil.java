@@ -1,6 +1,7 @@
 package io.github.shanqiang.util;
 
 import com.google.common.base.CharMatcher;
+import org.apache.commons.codec.digest.MurmurHash3;
 
 import java.math.BigDecimal;
 
@@ -51,5 +52,9 @@ public class ScalarUtil {
 
     public static String rtrim(String src, char trim) {
         return CharMatcher.is(trim).trimTrailingFrom(src);
+    }
+
+    public static int murmur3Hash32(final byte[] data) {
+        return MurmurHash3.hash32(data);
     }
 }

@@ -20,6 +20,8 @@ public class KafkaStreamTableTest {
 
     @Test
     public void produceThenConsume() throws InterruptedException {
+        long now = System.currentTimeMillis();
+
         Map<String, Type> columnTypeMap = new ColumnTypeBuilder()
                 .column("testColumnVarchar", Type.VARBYTE)
                 .column("testColumnInt", Type.INT)
@@ -53,11 +55,7 @@ public class KafkaStreamTableTest {
         KafkaStreamTable kafkaStreamTable = new KafkaStreamTable(bootstrapServers,
                 "consumerGroupId",
                 topic,
-                new Calendar.Builder().
-                        setDate(2021, 9, 17).
-                        setTimeOfDay(11, 3, 0).
-                        build().
-                        getTimeInMillis(),
+                now,
                 new Calendar.Builder().
                         setDate(9999, 9, 17).
                         setTimeOfDay(11, 3, 0).
@@ -65,10 +63,10 @@ public class KafkaStreamTableTest {
                         getTimeInMillis(),
                 columnTypeMap);
         kafkaStreamTable.start();
-        table = kafkaStreamTable.consume();
         Thread.sleep(1_000);
         table = kafkaStreamTable.consume();
 
+        assert table.size() == 2;
         assert table.getColumn("__receive_time__").getLong(0)
                 >=
                 table.getColumn("__time__").getLong(0);
@@ -79,8 +77,8 @@ public class KafkaStreamTableTest {
         assert table.getColumn(5).getDouble(1) == Double.MIN_VALUE;
 
         columnTypeMap = new ColumnTypeBuilder()
-                .column("ts", Type.BIGINT)
-                .column("key", Type.BIGINT)
+                .column("__receive_time__", Type.BIGINT)
+                .column("__time__", Type.BIGINT)
                 .column("value", Type.VARBYTE)
                 .build();
         KafkaStreamTableExt kafkaStreamTableExt = new KafkaStreamTableExt(bootstrapServers,
@@ -88,11 +86,7 @@ public class KafkaStreamTableTest {
                 topic,
                 "org.apache.kafka.common.serialization.LongDeserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer",
-                new Calendar.Builder().
-                        setDate(2021, 9, 17).
-                        setTimeOfDay(11, 3, 0).
-                        build().
-                        getTimeInMillis(),
+                now,
                 new Calendar.Builder().
                         setDate(9999, 9, 17).
                         setTimeOfDay(11, 3, 0).
@@ -100,12 +94,29 @@ public class KafkaStreamTableTest {
                         getTimeInMillis(),
                 columnTypeMap);
         kafkaStreamTableExt.start();
-        table = kafkaStreamTableExt.consume();
         Thread.sleep(1_000);
         table = kafkaStreamTableExt.consume();
+        assert table.size() == 2;
 
-        assert table.getColumn("ts").getLong(0)
+        assert table.getColumn("__receive_time__").getLong(0)
                 >=
-                table.getColumn("key").getLong(0);
+                table.getColumn("__time__").getLong(0);
+
+        kafkaStreamTableExt = new KafkaStreamTableExt(bootstrapServers,
+                "consumerGroupId",
+                topic,
+                "org.apache.kafka.common.serialization.LongDeserializer",
+                "org.apache.kafka.common.serialization.StringDeserializer",
+                System.currentTimeMillis(),
+                new Calendar.Builder().
+                        setDate(9999, 9, 17).
+                        setTimeOfDay(11, 3, 0).
+                        build().
+                        getTimeInMillis(),
+                columnTypeMap);
+        kafkaStreamTableExt.start();
+        Thread.sleep(1_000);
+        table = kafkaStreamTableExt.consume();
+        assert table.size() == 0;
     }
 }

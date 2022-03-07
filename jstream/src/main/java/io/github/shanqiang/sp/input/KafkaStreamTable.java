@@ -136,7 +136,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
         }
     }
 
-    protected void newConsumer(TopicPartition topicPartition, OffsetAndTimestamp offsetAndTimestamp) {
+    protected void newConsumer(TopicPartition topicPartition, long offset) {
         if (topicPartition.partition() % serverCount != myHash) {
             return;
         }
@@ -153,11 +153,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
             public void run() {
                 Consumer<Long, String> consumer = new KafkaConsumer<>(properties);
                 consumer.assign(asList(topicPartition));
-                if (null == offsetAndTimestamp) {
-                    consumer.seekToBeginning(asList(topicPartition));
-                } else {
-                    consumer.seek(topicPartition, offsetAndTimestamp.offset());
-                }
+                consumer.seek(topicPartition, offset);
 
                 Gson gson = new Gson();
                 while (!Thread.interrupted()) {
@@ -260,7 +256,17 @@ public class KafkaStreamTable extends AbstractStreamTable {
         }
         Map<TopicPartition, OffsetAndTimestamp> topicPartitionOffsets = consumer.offsetsForTimes(topicPartitionTimes);
         for (TopicPartition topicPartition : topicPartitionOffsets.keySet()) {
-            newConsumer(topicPartition, topicPartitionOffsets.get(topicPartition));
+            OffsetAndTimestamp offsetAndTimestamp = topicPartitionOffsets.get(topicPartition);
+            if (null == offsetAndTimestamp) {
+                /**
+                 * consumeFrom超出最大时间戳的情况下会返回null，这种情况下从末尾开始消费
+                 * 如果想从起始点消费consumeFrom给0即可
+                 */
+                Map<TopicPartition, Long> offsets = consumer.endOffsets(asList(topicPartition));
+                newConsumer(topicPartition, offsets.get(topicPartition));
+            } else {
+                newConsumer(topicPartition, offsetAndTimestamp.offset());
+            }
         }
 
         partitionsDetector.scheduleWithFixedDelay(new Runnable() {
@@ -268,9 +274,18 @@ public class KafkaStreamTable extends AbstractStreamTable {
             public void run() {
                 logger.info("{} partitions: {}", sign, myPartitions);
                 Consumer<String, String> consumer = newKafkaConsumer(properties);
+
+                /**
+                 * 该函数返回的是topic的所有partition并不会按相同的consumer group负载均衡
+                 * newConsumer里会按serverCount和myHash对不属于自己消费的partition直接返回
+                 */
                 List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+
                 for (PartitionInfo partitionInfo : partitionInfos) {
-                    newConsumer(new TopicPartition(topic, partitionInfo.partition()), null);
+                    /**
+                     * 消费过程中新创建的partition从0即起始点开始消费
+                     */
+                    newConsumer(new TopicPartition(topic, partitionInfo.partition()), 0);
                 }
             }
         }, 0, 5, TimeUnit.SECONDS);

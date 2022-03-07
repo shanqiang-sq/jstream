@@ -193,8 +193,9 @@ public class DorisOutputTable extends AbstractOutputTable {
         switch (type) {
             case VARBYTE:
             case BIGDECIMAL:
-                return "STRING";
+//                return "STRING";
 //                return "VARCHAR(65533)";
+                return "VARCHAR(1000)";     //The size of a row cannot exceed the maximal row size: 100000
             case INT:
                 return "INT";
             case BIGINT:
@@ -210,7 +211,7 @@ public class DorisOutputTable extends AbstractOutputTable {
         StringBuilder fieldsBuilder = new StringBuilder();
         for (String columnName : columnTypeMap.keySet()) {
             Type type = columnTypeMap.get(columnName);
-            fieldsBuilder.append(columnName).append(" ").append(toDorisType(type)).append(",");
+            fieldsBuilder.append("`").append(columnName).append("`").append(" ").append(toDorisType(type)).append(",");
         }
 
         String fieldsSchema = fieldsBuilder.toString();
@@ -323,7 +324,11 @@ public class DorisOutputTable extends AbstractOutputTable {
                         format("Stream load failed, statusCode=%s load result=%s", statusCode, loadResult));
             }
 
-            return gson.fromJson(loadResult, JsonObject.class).get("NumberLoadedRows").getAsInt();
+            JsonObject jsonObject = gson.fromJson(loadResult, JsonObject.class);
+            if (!jsonObject.get("Status").getAsString().equals("Success")) {
+                throw new IllegalStateException(loadResult);
+            }
+            return jsonObject.get("NumberLoadedRows").getAsInt();
         }
     }
 
