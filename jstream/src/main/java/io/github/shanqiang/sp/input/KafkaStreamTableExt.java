@@ -41,7 +41,8 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
         super(bootstrapServers, consumerGroupId, topic, keyDeserializer, valueDeserializer, consumeFrom, consumeTo, columnTypeMap);
     }
 
-    protected void newConsumer(TopicPartition topicPartition, OffsetAndTimestamp offsetAndTimestamp) {
+    @Override
+    protected void newConsumer(TopicPartition topicPartition, long offset) {
         if (topicPartition.partition() % serverCount != myHash) {
             return;
         }
@@ -58,11 +59,7 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
             public void run() {
                 Consumer<Integer, String> consumer = new KafkaConsumer<>(properties);
                 consumer.assign(asList(topicPartition));
-                if (null == offsetAndTimestamp) {
-                    consumer.seekToBeginning(asList(topicPartition));
-                } else {
-                    consumer.seek(topicPartition, offsetAndTimestamp.offset());
-                }
+                consumer.seek(topicPartition, offset);
 
                 Gson gson = new Gson();
                 while (!Thread.interrupted()) {
