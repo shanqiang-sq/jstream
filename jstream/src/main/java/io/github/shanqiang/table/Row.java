@@ -29,6 +29,13 @@ public interface Row {
         return new String(byteArray.getBytes(), byteArray.getOffset(), byteArray.getLength(), charsetName);
     }
 
+    default ByteArray toByteArray(Comparable comparable) {
+        if (null == comparable) {
+            return null;
+        }
+        return  (ByteArray) comparable;
+    }
+
     default byte[] toBytes(Comparable comparable) {
         if (null == comparable) {
             return null;
@@ -50,6 +57,7 @@ public interface Row {
     String getString(String columnName);
     String getString(String columnName, String charsetName) throws UnsupportedEncodingException;
     byte[] getBytes(String columnName);
+    ByteArray getByteArray(String columnName);
     BigDecimal getBigDecimal(String columnName);
     Double getDouble(String columnName);
     Long getLong(String columnName);
@@ -57,6 +65,7 @@ public interface Row {
     String getString(int index);
     String getString(int index, String charsetName) throws UnsupportedEncodingException;
     byte[] getBytes(int index);
+    ByteArray getByteArray(int index);
     BigDecimal getBigDecimal(int index);
     Double getDouble(int index);
     Long getLong(int index);

@@ -1,5 +1,7 @@
 package io.github.shanqiang.table;
 
+import io.github.shanqiang.offheap.ByteArray;
+
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 
@@ -30,6 +32,11 @@ public abstract class AbstractRow implements Row {
     @Override
     public byte[] getBytes(String columnName) {
         return toBytes(getComparable(columnName));
+    }
+
+    @Override
+    public ByteArray getByteArray(String columnName) {
+        return toByteArray(getComparable(columnName));
     }
 
     @Override
@@ -65,6 +72,11 @@ public abstract class AbstractRow implements Row {
     @Override
     public byte[] getBytes(int index) {
         return toBytes(getComparable(index));
+    }
+
+    @Override
+    public ByteArray getByteArray(int index) {
+        return toByteArray(getComparable(index));
     }
 
     @Override
