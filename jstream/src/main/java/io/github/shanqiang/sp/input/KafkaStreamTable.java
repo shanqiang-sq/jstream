@@ -257,7 +257,10 @@ public class KafkaStreamTable extends AbstractStreamTable {
         Map<TopicPartition, OffsetAndTimestamp> topicPartitionOffsets = consumer.offsetsForTimes(topicPartitionTimes);
         for (TopicPartition topicPartition : topicPartitionOffsets.keySet()) {
             OffsetAndTimestamp offsetAndTimestamp = topicPartitionOffsets.get(topicPartition);
-            if (null == offsetAndTimestamp) {
+            if (0 == consumeFrom) {
+                Map<TopicPartition, Long> offsets = consumer.beginningOffsets(asList(topicPartition));
+                newConsumer(topicPartition, offsets.get(topicPartition));
+            } else if (null == offsetAndTimestamp) {
                 /**
                  * consumeFrom超出最大时间戳的情况下会返回null，这种情况下从末尾开始消费
                  * 如果想从起始点消费consumeFrom给0即可
