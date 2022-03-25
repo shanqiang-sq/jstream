@@ -3,7 +3,6 @@ package io.github.shanqiang.sp.output;
 import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mysql.cj.jdbc.MysqlDataSource;
 import io.github.shanqiang.exception.UnknownTypeException;
@@ -12,7 +11,6 @@ import io.github.shanqiang.sp.QueueSizeLogger;
 import io.github.shanqiang.table.Column;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.Type;
-
 import org.apache.commons.codec.binary.Base64;
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.CloseableHttpResponse;
@@ -30,19 +28,17 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
-import java.sql.JDBCType;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.sp.StreamProcessing.handleException;
-import static java.lang.Integer.parseInt;
 import static java.lang.Integer.toHexString;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
@@ -66,6 +62,7 @@ public class DorisOutputTable extends AbstractOutputTable {
     private final int columnCount;
     private final String jsonpaths;
     private final String sign;
+    private final long flushInterval;
 
     private final ThreadPoolExecutor threadPoolExecutor;
     private final QueueSizeLogger queueSizeLogger = new QueueSizeLogger();
@@ -90,6 +87,7 @@ public class DorisOutputTable extends AbstractOutputTable {
                             Map<String, Type> columnTypeMap) throws IOException {
         this(Runtime.getRuntime().availableProcessors(),
                 40000,
+                Duration.ofSeconds(1),
                 jdbcHostPorts,
                 loadAddress,
                 user,
@@ -119,6 +117,7 @@ public class DorisOutputTable extends AbstractOutputTable {
      */
     public DorisOutputTable(int thread,
                             int batchSize,
+                            Duration flushInterval,
                             String jdbcHostPorts,
                             String loadAddress,
                             String user,
@@ -144,6 +143,7 @@ public class DorisOutputTable extends AbstractOutputTable {
         }
         this.maxRetryTimes = requireNonNull(maxRetryTimes);
         this.batchSize = batchSize;
+        this.flushInterval = requireNonNull(flushInterval).toMillis();
         this.autoDropTable = autoDropTable;
         this.columnTypeMap = requireNonNull(columnTypeMap);
         this.columnCount = columnTypeMap.size();
@@ -195,7 +195,7 @@ public class DorisOutputTable extends AbstractOutputTable {
             case BIGDECIMAL:
 //                return "STRING";
 //                return "VARCHAR(65533)";
-                return "VARCHAR(1000)";     //The size of a row cannot exceed the maximal row size: 100000
+                return "VARCHAR(10000)";     //The size of a row cannot exceed the maximal row size: 100000
             case INT:
                 return "INT";
             case BIGINT:
@@ -264,6 +264,23 @@ public class DorisOutputTable extends AbstractOutputTable {
         putTable(table);
     }
 
+    private String escape(String src) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < src.length(); i++) {
+            char c = src.charAt(i);
+            if (c == '\\') {
+                sb.append('\\');
+                sb.append('\\');
+            } else if (c == '"') {
+                sb.append('\\');
+                sb.append('"');
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
     private int insert(CloseableHttpClient httpClient, List<Object> objectList, Gson gson) throws IOException {
         if (objectList.size() <= 0) {
             return 0;
@@ -285,7 +302,7 @@ public class DorisOutputTable extends AbstractOutputTable {
             }
             if (object instanceof String || object instanceof ByteArray) {
                 sb.append('"');
-                sb.append(object.toString().replaceAll("\"", "\\\""));
+                sb.append(escape(object.toString()));
                 sb.append('"');
             } else {
                 sb.append(object);
@@ -335,30 +352,37 @@ public class DorisOutputTable extends AbstractOutputTable {
     public void start() {
         for (int i = 0; i < thread; i++) {
             threadPoolExecutor.submit(new Runnable() {
+                private long lastTime = 0;
+                private List<Object> values = new ArrayList<>();
+                private final Gson gson = new Gson();
+                private final CloseableHttpClient httpClient = httpClientBuilder.build();
+
+                private void load() throws IOException {
+                    insert(httpClient, values, gson);
+                    values.clear();
+                    lastTime = System.currentTimeMillis();
+                }
+
                 @Override
                 public void run() {
-                    Gson gson = new Gson();
-                    CloseableHttpClient httpClient = httpClientBuilder.build();
-
                     while (!Thread.interrupted()) {
                         try {
                             Table table = consume();
                             List<Column> columns = table.getColumns();
 
-                            List<Object> values = new ArrayList<>();
+                            if (System.currentTimeMillis() - lastTime >= flushInterval && values.size() > 0) {
+                                load();
+                            }
+
                             for (int i = 0; i < table.size(); i++) {
                                 for (int j = 0; j < columns.size(); j++) {
                                     values.add(columns.get(j).get(i));
                                 }
                                 if (values.size() == batchSize * columns.size()) {
-                                    insert(httpClient, values, gson);
-                                    values.clear();
+                                    load();
                                 }
                             }
 
-                            if (values.size() > 0) {
-                                insert(httpClient, values, gson);
-                            }
                         } catch (InterruptedException e) {
                             logger.info("interrupted");
                             break;
