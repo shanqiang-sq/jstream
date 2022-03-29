@@ -76,14 +76,16 @@ public abstract class RdsDimensionTable extends DimensionTable {
                 scheduleWithFixedDelay(new Runnable() {
                     @Override
                     public void run() {
-                        try {
+                        DataSource dataSource = newDataSource();
+                        try (
+                             Connection connection = dataSource.getConnection();
+                             PreparedStatement preparedStatement = connection.prepareStatement(sql);
+                             ResultSet resultSet = preparedStatement.executeQuery()
+                        ) {
                             long pre = System.currentTimeMillis();
                             logger.info("begin to load {}", myName);
                             TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
-                            DataSource dataSource = newDataSource();
-                            Connection connection = dataSource.getConnection();
-                            PreparedStatement preparedStatement = connection.prepareStatement(sql);
-                            ResultSet resultSet = preparedStatement.executeQuery();
+
                             if (resultSet.getMetaData().getColumnCount() != columnTypeMap.size()) {
                                 throw new InconsistentColumnSizeException();
                             }
@@ -122,9 +124,6 @@ public abstract class RdsDimensionTable extends DimensionTable {
                                     pre = now;
                                 }
                             }
-                            resultSet.close();
-                            preparedStatement.close();
-                            connection.close();
 
                             Table table = tableBuilder.build();
                             Index index = table.createIndex(primaryKeyColumnNames);

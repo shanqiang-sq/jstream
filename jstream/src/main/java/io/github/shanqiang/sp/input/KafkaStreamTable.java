@@ -248,27 +248,28 @@ public class KafkaStreamTable extends AbstractStreamTable {
 
     @Override
     public void start() {
-        Consumer<String, String> consumer = newKafkaConsumer(properties);
-        List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
-        Map<TopicPartition, Long> topicPartitionTimes = new HashMap<>();
-        for (PartitionInfo partitionInfo : partitionInfos) {
-            topicPartitionTimes.put(new TopicPartition(partitionInfo.topic(), partitionInfo.partition()), consumeFrom);
-        }
-        Map<TopicPartition, OffsetAndTimestamp> topicPartitionOffsets = consumer.offsetsForTimes(topicPartitionTimes);
-        for (TopicPartition topicPartition : topicPartitionOffsets.keySet()) {
-            OffsetAndTimestamp offsetAndTimestamp = topicPartitionOffsets.get(topicPartition);
-            if (0 == consumeFrom) {
-                Map<TopicPartition, Long> offsets = consumer.beginningOffsets(asList(topicPartition));
-                newConsumer(topicPartition, offsets.get(topicPartition));
-            } else if (null == offsetAndTimestamp) {
-                /**
-                 * consumeFrom超出最大时间戳的情况下会返回null，这种情况下从末尾开始消费
-                 * 如果想从起始点消费consumeFrom给0即可
-                 */
-                Map<TopicPartition, Long> offsets = consumer.endOffsets(asList(topicPartition));
-                newConsumer(topicPartition, offsets.get(topicPartition));
-            } else {
-                newConsumer(topicPartition, offsetAndTimestamp.offset());
+        try (Consumer<String, String> consumer = newKafkaConsumer(properties)) {
+            List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+            Map<TopicPartition, Long> topicPartitionTimes = new HashMap<>();
+            for (PartitionInfo partitionInfo : partitionInfos) {
+                topicPartitionTimes.put(new TopicPartition(partitionInfo.topic(), partitionInfo.partition()), consumeFrom);
+            }
+            Map<TopicPartition, OffsetAndTimestamp> topicPartitionOffsets = consumer.offsetsForTimes(topicPartitionTimes);
+            for (TopicPartition topicPartition : topicPartitionOffsets.keySet()) {
+                OffsetAndTimestamp offsetAndTimestamp = topicPartitionOffsets.get(topicPartition);
+                if (0 == consumeFrom) {
+                    Map<TopicPartition, Long> offsets = consumer.beginningOffsets(asList(topicPartition));
+                    newConsumer(topicPartition, offsets.get(topicPartition));
+                } else if (null == offsetAndTimestamp) {
+                    /**
+                     * consumeFrom超出最大时间戳的情况下会返回null，这种情况下从末尾开始消费
+                     * 如果想从起始点消费consumeFrom给0即可
+                     */
+                    Map<TopicPartition, Long> offsets = consumer.endOffsets(asList(topicPartition));
+                    newConsumer(topicPartition, offsets.get(topicPartition));
+                } else {
+                    newConsumer(topicPartition, offsetAndTimestamp.offset());
+                }
             }
         }
 
@@ -276,19 +277,19 @@ public class KafkaStreamTable extends AbstractStreamTable {
             @Override
             public void run() {
                 logger.info("{} partitions: {}", sign, myPartitions);
-                Consumer<String, String> consumer = newKafkaConsumer(properties);
-
-                /**
-                 * 该函数返回的是topic的所有partition并不会按相同的consumer group负载均衡
-                 * newConsumer里会按serverCount和myHash对不属于自己消费的partition直接返回
-                 */
-                List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
-
-                for (PartitionInfo partitionInfo : partitionInfos) {
+                try (Consumer<String, String> consumer = newKafkaConsumer(properties)) {
                     /**
-                     * 消费过程中新创建的partition从0即起始点开始消费
+                     * 该函数返回的是topic的所有partition并不会按相同的consumer group负载均衡
+                     * newConsumer里会按serverCount和myHash对不属于自己消费的partition直接返回
                      */
-                    newConsumer(new TopicPartition(topic, partitionInfo.partition()), 0);
+                    List<PartitionInfo> partitionInfos = consumer.partitionsFor(topic);
+
+                    for (PartitionInfo partitionInfo : partitionInfos) {
+                        /**
+                         * 消费过程中新创建的partition从0即起始点开始消费
+                         */
+                        newConsumer(new TopicPartition(topic, partitionInfo.partition()), 0);
+                    }
                 }
             }
         }, 0, 5, TimeUnit.SECONDS);

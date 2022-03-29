@@ -113,49 +113,49 @@ public class OdpsDimensionTable extends DimensionTable {
                                     new PartitionSpec(format("%s='%s'", partitionColumnName, ptSpec)));
                             long recordNum = downloadSession.getRecordCount();
                             logger.info("{} will download {} records", myName, recordNum);
-                            RecordReader recordReader = downloadSession.openRecordReader(0, recordNum);
-                            Record record;
-                            int row = 0;
-                            while ((record = recordReader.read()) != null) {
-                                if (debug(row)) {
-                                    break;
-                                }
-
-                                int i = 0;
-                                for (String columnName : columnTypeMap.keySet()) {
-                                    Type type = columnTypeMap.get(columnName);
-                                    switch (type) {
-                                        case INT:
-                                            tableBuilder.append(i, record.getBigint(columnName) == null ? null : record.getBigint(columnName).intValue());
-                                            break;
-                                        case BIGINT:
-                                            tableBuilder.append(i, record.getBigint(columnName));
-                                            break;
-                                        case DOUBLE:
-                                            tableBuilder.append(i, record.getDouble(columnName));
-                                            break;
-                                        case VARBYTE:
-                                            tableBuilder.append(i, record.getString(columnName));
-                                            break;
-                                        default:
-                                            throw new UnknownTypeException(type.name());
+                            try (RecordReader recordReader = downloadSession.openRecordReader(0, recordNum)) {
+                                Record record;
+                                int row = 0;
+                                while ((record = recordReader.read()) != null) {
+                                    if (debug(row)) {
+                                        break;
                                     }
-                                    i++;
-                                }
-                                row++;
 
-                                long now = System.currentTimeMillis();
-                                if (now - pre > 5000) {
-                                    logger.info("{} have loaded {} rows", myName, row);
-                                    pre = now;
+                                    int i = 0;
+                                    for (String columnName : columnTypeMap.keySet()) {
+                                        Type type = columnTypeMap.get(columnName);
+                                        switch (type) {
+                                            case INT:
+                                                tableBuilder.append(i, record.getBigint(columnName) == null ? null : record.getBigint(columnName).intValue());
+                                                break;
+                                            case BIGINT:
+                                                tableBuilder.append(i, record.getBigint(columnName));
+                                                break;
+                                            case DOUBLE:
+                                                tableBuilder.append(i, record.getDouble(columnName));
+                                                break;
+                                            case VARBYTE:
+                                                tableBuilder.append(i, record.getString(columnName));
+                                                break;
+                                            default:
+                                                throw new UnknownTypeException(type.name());
+                                        }
+                                        i++;
+                                    }
+                                    row++;
+
+                                    long now = System.currentTimeMillis();
+                                    if (now - pre > 5000) {
+                                        logger.info("{} have loaded {} rows", myName, row);
+                                        pre = now;
+                                    }
                                 }
+
+                                Table table = tableBuilder.build();
+                                Index index = table.createIndex(primaryKeyColumnNames);
+                                tableIndex = new TableIndex(table, index);
+                                logger.info("end to load {}, rows: {}, index.size: {}", myName, row, index.getColumns2Rows().size());
                             }
-                            recordReader.close();
-
-                            Table table = tableBuilder.build();
-                            Index index = table.createIndex(primaryKeyColumnNames);
-                            tableIndex = new TableIndex(table, index);
-                            logger.info("end to load {}, rows: {}, index.size: {}", myName, row, index.getColumns2Rows().size());
                         } catch (Throwable t) {
                             logger.error("", t);
                             try {
@@ -180,7 +180,7 @@ public class OdpsDimensionTable extends DimensionTable {
         odps.setDefaultProject(projectName);
         List<Partition> partitions = odps.tables().get(tableName).getPartitions();
         String maxPtSpec = null;
-        for(Partition partition : partitions) {
+        for (Partition partition : partitions) {
             PartitionSpec partitionSpec = partition.getPartitionSpec();
             String ptSpec = partitionSpec.get(partitionSpec.keys().iterator().next());
             if (null == maxPtSpec || maxPtSpec.compareTo(ptSpec) < 0) {

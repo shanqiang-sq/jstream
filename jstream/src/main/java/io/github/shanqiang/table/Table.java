@@ -44,6 +44,14 @@ public class Table {
     private int size;
 
     public void print() {
+        print(false);
+    }
+
+    /**
+     * print the table
+     * @param auto true will print the all table no need stdin
+     */
+    public void print(boolean auto) {
         System.out.println();
         System.out.println("Table@" + toHexString(hashCode()) + ":");
         System.out.println("________________________________________________________________________________________________________________________");
@@ -55,7 +63,7 @@ public class Table {
             System.out.println("------------------------------------------------------------------------------------------------------------------------");
             if (i >= 100 && i % 100 == 0) {
                 Scanner scanner = new Scanner(System.in);
-                if (scanner.hasNext()) {
+                if (auto || scanner.hasNext()) {
                     continue;
                 }
             }
