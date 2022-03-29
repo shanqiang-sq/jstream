@@ -21,6 +21,7 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
 
     /**
      * 消费到的表结构：第一列timestamp 第二列key 第三列value
+     *
      * @param bootstrapServers
      * @param consumerGroupId
      * @param topic
@@ -57,43 +58,44 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
-                Consumer<Integer, String> consumer = new KafkaConsumer<>(properties);
-                consumer.assign(asList(topicPartition));
-                consumer.seek(topicPartition, offset);
+                try (Consumer<Integer, String> consumer = new KafkaConsumer<>(properties)) {
+                    consumer.assign(asList(topicPartition));
+                    consumer.seek(topicPartition, offset);
 
-                Gson gson = new Gson();
-                while (!Thread.interrupted()) {
-                    try {
-                        ConsumerRecords records = consumer.poll(Duration.ofMillis(sleepMs));
-                        if (records.isEmpty()) {
-                            continue;
-                        }
-                        TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
-                        for (Object obj : records) {
-                            ConsumerRecord record = (ConsumerRecord) obj;
-
-                            Long receiveTime = record.timestamp();
-                            if (-1 != consumeTo && receiveTime >= consumeTo) {
-                                kafkaStreamTable.removePartition(topicPartition.partition());
-                                return;
+                    Gson gson = new Gson();
+                    while (!Thread.interrupted()) {
+                        try {
+                            ConsumerRecords records = consumer.poll(Duration.ofMillis(sleepMs));
+                            if (records.isEmpty()) {
+                                continue;
                             }
+                            TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
+                            for (Object obj : records) {
+                                ConsumerRecord record = (ConsumerRecord) obj;
 
-                            long now = System.currentTimeMillis();
-                            Delay.DELAY.log("business-delay" + kafkaStreamTable.sign, receiveTime);
-                            Delay.DELAY.log("data-interval" + kafkaStreamTable.sign, now);
-                            Delay.RESIDENCE_TIME.log("data-residence-time" + kafkaStreamTable.sign, now - receiveTime);
+                                Long receiveTime = record.timestamp();
+                                if (-1 != consumeTo && receiveTime >= consumeTo) {
+                                    kafkaStreamTable.removePartition(topicPartition.partition());
+                                    return;
+                                }
 
-                            tableBuilder.append(0, receiveTime);
-                            tableBuilder.appendValue(1, record.key());
-                            tableBuilder.appendValue(2, record.value());
+                                long now = System.currentTimeMillis();
+                                Delay.DELAY.log("business-delay" + kafkaStreamTable.sign, receiveTime);
+                                Delay.DELAY.log("data-interval" + kafkaStreamTable.sign, now);
+                                Delay.RESIDENCE_TIME.log("data-residence-time" + kafkaStreamTable.sign, now - receiveTime);
+
+                                tableBuilder.append(0, receiveTime);
+                                tableBuilder.appendValue(1, record.key());
+                                tableBuilder.appendValue(2, record.value());
+                            }
+                            queueSizeLogger.logQueueSize("input queue size" + kafkaStreamTable.sign, arrayBlockingQueueList);
+                            recordSizeLogger.logRecordSize("input queue rows" + kafkaStreamTable.sign, arrayBlockingQueueList);
+                            arrayBlockingQueueList.get(threadId).put(tableBuilder.build());
+                        } catch (InterruptException e) {
+                            break;
+                        } catch (InterruptedException e) {
+                            break;
                         }
-                        queueSizeLogger.logQueueSize("input queue size" + kafkaStreamTable.sign, arrayBlockingQueueList);
-                        recordSizeLogger.logRecordSize("input queue rows" + kafkaStreamTable.sign, arrayBlockingQueueList);
-                        arrayBlockingQueueList.get(threadId).put(tableBuilder.build());
-                    } catch (InterruptException e) {
-                        break;
-                    } catch (InterruptedException e) {
-                        break;
                     }
                 }
             }

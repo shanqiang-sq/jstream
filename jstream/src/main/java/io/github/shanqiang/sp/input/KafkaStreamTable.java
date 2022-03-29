@@ -80,6 +80,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
     /**
      * key是kafka客户端写kafka的时间（int型，秒），kafka服务端的timestamp是接收到数据的时间据此也可评估写入latency
      * value是一个json格式的字符串
+     *
      * @param bootstrapServers
      * @param consumerGroupId
      * @param topic
@@ -151,70 +152,71 @@ public class KafkaStreamTable extends AbstractStreamTable {
         Thread thread = new Thread(new Runnable() {
             @Override
             public void run() {
-                Consumer<Long, String> consumer = new KafkaConsumer<>(properties);
-                consumer.assign(asList(topicPartition));
-                consumer.seek(topicPartition, offset);
+                try (Consumer<Long, String> consumer = new KafkaConsumer<>(properties)) {
+                    consumer.assign(asList(topicPartition));
+                    consumer.seek(topicPartition, offset);
 
-                Gson gson = new Gson();
-                while (!Thread.interrupted()) {
-                    try {
-                        ConsumerRecords<Long, String> records = consumer.poll(Duration.ofMillis(sleepMs));
-                        if (records.isEmpty()) {
-                            continue;
-                        }
-                        TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
-                        for (ConsumerRecord<Long, String> record : records) {
-                            Long time = record.key();
-                            if (-1 != consumeTo && time >= consumeTo) {
-                                kafkaStreamTable.removePartition(topicPartition.partition());
-                                return;
+                    Gson gson = new Gson();
+                    while (!Thread.interrupted()) {
+                        try {
+                            ConsumerRecords<Long, String> records = consumer.poll(Duration.ofMillis(sleepMs));
+                            if (records.isEmpty()) {
+                                continue;
                             }
+                            TableBuilder tableBuilder = new TableBuilder(columnTypeMap);
+                            for (ConsumerRecord<Long, String> record : records) {
+                                Long time = record.key();
+                                if (-1 != consumeTo && time >= consumeTo) {
+                                    kafkaStreamTable.removePartition(topicPartition.partition());
+                                    return;
+                                }
 
-                            long now = System.currentTimeMillis();
-                            Delay.DELAY.log("business-delay" + kafkaStreamTable.sign, time);
-                            Delay.DELAY.log("data-interval" + kafkaStreamTable.sign, now);
-                            Delay.RESIDENCE_TIME.log("data-residence-time" + kafkaStreamTable.sign, now - time);
+                                long now = System.currentTimeMillis();
+                                Delay.DELAY.log("business-delay" + kafkaStreamTable.sign, time);
+                                Delay.DELAY.log("data-interval" + kafkaStreamTable.sign, now);
+                                Delay.RESIDENCE_TIME.log("data-residence-time" + kafkaStreamTable.sign, now - time);
 
-                            String value = record.value();
-                            JsonObject jsonObject = gson.fromJson(value, JsonObject.class);
-                            for (int i = 0; i < stringColumns.size(); i++) {
-                                if (i == timeColumnIndex) {
-                                    tableBuilder.append(i, time);
-                                } else if (i == receiveTimeColumnIndex) {
-                                    tableBuilder.append(i, record.timestamp());
-                                } else {
-                                    JsonElement jsonElement = jsonObject.get(stringColumns.get(i));
-                                    if (null == jsonElement || jsonElement.isJsonNull()) {
-                                        tableBuilder.appendValue(i, null);
+                                String value = record.value();
+                                JsonObject jsonObject = gson.fromJson(value, JsonObject.class);
+                                for (int i = 0; i < stringColumns.size(); i++) {
+                                    if (i == timeColumnIndex) {
+                                        tableBuilder.append(i, time);
+                                    } else if (i == receiveTimeColumnIndex) {
+                                        tableBuilder.append(i, record.timestamp());
                                     } else {
-                                        Type type = types.get(i);
-                                        switch (type) {
-                                            case DOUBLE:
-                                                tableBuilder.append(i, jsonElement.getAsDouble());
-                                                break;
-                                            case BIGINT:
-                                                tableBuilder.append(i, jsonElement.getAsLong());
-                                                break;
-                                            case INT:
-                                                tableBuilder.append(i, jsonElement.getAsInt());
-                                                break;
-                                            case VARBYTE:
-                                                tableBuilder.append(i, jsonElement.getAsString());
-                                                break;
-                                            default:
-                                                throw new UnknownTypeException(type.name());
+                                        JsonElement jsonElement = jsonObject.get(stringColumns.get(i));
+                                        if (null == jsonElement || jsonElement.isJsonNull()) {
+                                            tableBuilder.appendValue(i, null);
+                                        } else {
+                                            Type type = types.get(i);
+                                            switch (type) {
+                                                case DOUBLE:
+                                                    tableBuilder.append(i, jsonElement.getAsDouble());
+                                                    break;
+                                                case BIGINT:
+                                                    tableBuilder.append(i, jsonElement.getAsLong());
+                                                    break;
+                                                case INT:
+                                                    tableBuilder.append(i, jsonElement.getAsInt());
+                                                    break;
+                                                case VARBYTE:
+                                                    tableBuilder.append(i, jsonElement.getAsString());
+                                                    break;
+                                                default:
+                                                    throw new UnknownTypeException(type.name());
+                                            }
                                         }
                                     }
                                 }
                             }
+                            queueSizeLogger.logQueueSize("input queue size" + kafkaStreamTable.sign, arrayBlockingQueueList);
+                            recordSizeLogger.logRecordSize("input queue rows" + kafkaStreamTable.sign, arrayBlockingQueueList);
+                            arrayBlockingQueueList.get(threadId).put(tableBuilder.build());
+                        } catch (InterruptException e) {
+                            break;
+                        } catch (InterruptedException e) {
+                            break;
                         }
-                        queueSizeLogger.logQueueSize("input queue size" + kafkaStreamTable.sign, arrayBlockingQueueList);
-                        recordSizeLogger.logRecordSize("input queue rows" + kafkaStreamTable.sign, arrayBlockingQueueList);
-                        arrayBlockingQueueList.get(threadId).put(tableBuilder.build());
-                    } catch (InterruptException e) {
-                        break;
-                    } catch (InterruptedException e) {
-                        break;
                     }
                 }
             }

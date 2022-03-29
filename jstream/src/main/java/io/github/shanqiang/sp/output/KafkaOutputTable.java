@@ -99,14 +99,15 @@ public class KafkaOutputTable extends AbstractOutputTable {
     }
 
     private void detectPartitions() {
-        Producer<Integer, String> producerForDetection = new KafkaProducer<>(properties);
-        List<PartitionInfo> partitionInfos = producerForDetection.partitionsFor(topic);
-        int[] arr = new int[partitionInfos.size()];
-        int i = 0;
-        for (PartitionInfo partitionInfo : partitionInfos) {
-            arr[i++] = partitionInfo.partition();
+        try (Producer<Integer, String> producerForDetection = new KafkaProducer<>(properties)) {
+            List<PartitionInfo> partitionInfos = producerForDetection.partitionsFor(topic);
+            int[] arr = new int[partitionInfos.size()];
+            int i = 0;
+            for (PartitionInfo partitionInfo : partitionInfos) {
+                arr[i++] = partitionInfo.partition();
+            }
+            allPartitions = arr;
         }
-        allPartitions = arr;
     }
 
     public void start() {
@@ -126,52 +127,53 @@ public class KafkaOutputTable extends AbstractOutputTable {
                 public void run() {
                     Properties tmp = (Properties) properties.clone();
                     tmp.put(CLIENT_ID_CONFIG, getIp() + "-" + finalI);
-                    Producer<Long, String> producer = new KafkaProducer(tmp);
-                    while (!Thread.interrupted()) {
-                        try {
-                            Table table = consume();
-                            List<Column> columns = table.getColumns();
+                    try (Producer<Long, String> producer = new KafkaProducer(tmp)) {
+                        while (!Thread.interrupted()) {
+                            try {
+                                Table table = consume();
+                                List<Column> columns = table.getColumns();
 
-                            long now = System.currentTimeMillis();
-                            for (int i = 0; i < table.size(); i++) {
-                                JsonObject jsonObject = new JsonObject();
-                                for (int j = 0; j < columns.size(); j++) {
-                                    if (null != columns.get(j).get(i)) {
-                                        String key = columns.get(j).name();
-                                        Comparable comparable = columns.get(j).get(i);
-                                        if (null == comparable) {
-                                            jsonObject.add(key, null);
-                                            continue;
-                                        }
-                                        if (comparable instanceof String || comparable instanceof ByteArray) {
-                                            jsonObject.addProperty(key, toStr(comparable));
-                                        } else {
-                                            if (__time__.equals(key)) {
-                                                now = (long) comparable;
+                                long now = System.currentTimeMillis();
+                                for (int i = 0; i < table.size(); i++) {
+                                    JsonObject jsonObject = new JsonObject();
+                                    for (int j = 0; j < columns.size(); j++) {
+                                        if (null != columns.get(j).get(i)) {
+                                            String key = columns.get(j).name();
+                                            Comparable comparable = columns.get(j).get(i);
+                                            if (null == comparable) {
+                                                jsonObject.add(key, null);
+                                                continue;
+                                            }
+                                            if (comparable instanceof String || comparable instanceof ByteArray) {
+                                                jsonObject.addProperty(key, toStr(comparable));
                                             } else {
-                                                jsonObject.addProperty(key, (Number) comparable);
+                                                if (__time__.equals(key)) {
+                                                    now = (long) comparable;
+                                                } else {
+                                                    jsonObject.addProperty(key, (Number) comparable);
+                                                }
                                             }
                                         }
                                     }
+                                    ProducerRecord<Long, String> producerRecord = new ProducerRecord<>(topic,
+                                            allPartitions[random.nextInt(allPartitions.length)],
+                                            now,
+                                            jsonObject.toString());
+                                    producer.send(producerRecord);
+                                    if (i > 0 && i % batchSize == 0) {
+                                        producer.flush();
+                                        now = System.currentTimeMillis();
+                                    }
                                 }
-                                ProducerRecord<Long, String> producerRecord = new ProducerRecord<>(topic,
-                                        allPartitions[random.nextInt(allPartitions.length)],
-                                        now,
-                                        jsonObject.toString());
-                                producer.send(producerRecord);
-                                if (i > 0 && i % batchSize == 0) {
-                                    producer.flush();
-                                    now = System.currentTimeMillis();
-                                }
-                            }
 
-                            producer.flush();
-                        } catch (InterruptedException e) {
-                            logger.info("interrupted");
-                            break;
-                        } catch (Throwable t) {
-                            StreamProcessing.handleException(t);
-                            break;
+                                producer.flush();
+                            } catch (InterruptedException e) {
+                                logger.info("interrupted");
+                                break;
+                            } catch (Throwable t) {
+                                StreamProcessing.handleException(t);
+                                break;
+                            }
                         }
                     }
                 }
