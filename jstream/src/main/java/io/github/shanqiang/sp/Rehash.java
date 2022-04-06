@@ -107,7 +107,9 @@ public class Rehash {
     }
 
     public void close() {
-        server.close();
+        if (null != server) {
+            server.close();
+        }
         for (int i = 0; i < serverCount; i++) {
             if (i == myHash) {
                 continue;

@@ -699,7 +699,13 @@ public class InternalUnsafe {
             }
 
             cmd += pid;
-            Runtime.getRuntime().exec("setsid -f " + cmd);
+
+            String os = System.getProperty("os.name");
+            if (null != os && os.indexOf("Mac") == 0) {
+                Runtime.getRuntime().exec(cmd);
+            } else {
+                Runtime.getRuntime().exec("setsid -f " + cmd);
+            }
         } catch (Throwable t) {
             logger.error("", t);
             throw new RuntimeException(t);
