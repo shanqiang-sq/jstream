@@ -193,9 +193,7 @@ public class DorisOutputTable extends AbstractOutputTable {
         switch (type) {
             case VARBYTE:
             case BIGDECIMAL:
-//                return "STRING";
-//                return "VARCHAR(65533)";
-                return "VARCHAR(10000)";     //The size of a row cannot exceed the maximal row size: 100000
+                return "STRING";
             case INT:
                 return "INT";
             case BIGINT:
