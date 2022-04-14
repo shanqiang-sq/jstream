@@ -72,6 +72,7 @@ public abstract class RdsDimensionTable extends DimensionTable {
         this.sql = requireNonNull(sql);
         this.myName = format("%s: %s %s", this.getClass().getSimpleName(), url, sql.substring(0, sql.length() > 20 ? 20 : sql.length()));
 
+        final DimensionTable that = this;
         new ScheduledThreadPoolExecutor(1, Threads.threadsNamed(myName)).
                 scheduleWithFixedDelay(new Runnable() {
                     @Override
@@ -128,6 +129,7 @@ public abstract class RdsDimensionTable extends DimensionTable {
                             Table table = tableBuilder.build();
                             Index index = table.createIndex(primaryKeyColumnNames);
                             tableIndex = new TableIndex(table, index);
+                            loadedCallback.callback(that);
                             logger.info("end to load {}, rows: {}, index.size: {}", myName, row, index.getColumns2Rows().size());
                         } catch (Throwable t) {
                             logger.error("", t);

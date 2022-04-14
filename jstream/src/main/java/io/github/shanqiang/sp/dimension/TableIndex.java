@@ -11,13 +11,17 @@ public class TableIndex {
     private final Table table;
     private final Index index;
 
-    protected TableIndex(Table table, Index index) {
+    public TableIndex(Table table, Index index) {
         this.table = table;
         this.index = index;
     }
 
     public Table getTable() {
         return table;
+    }
+
+    public Index getIndex() {
+        return index;
     }
 
     public List<Integer> getRows(Comparable... primaryKey) {

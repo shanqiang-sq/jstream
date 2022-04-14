@@ -88,6 +88,7 @@ public class OdpsDimensionTable extends DimensionTable {
 
         this.myName = format("%s: %s.%s", this.getClass().getSimpleName(), projectName, tableName);
 
+        final DimensionTable that = this;
         new ScheduledThreadPoolExecutor(1, Threads.threadsNamed(myName)).
                 scheduleWithFixedDelay(new Runnable() {
                     @Override
@@ -154,6 +155,7 @@ public class OdpsDimensionTable extends DimensionTable {
                                 Table table = tableBuilder.build();
                                 Index index = table.createIndex(primaryKeyColumnNames);
                                 tableIndex = new TableIndex(table, index);
+                                loadedCallback.callback(that);
                                 logger.info("end to load {}, rows: {}, index.size: {}", myName, row, index.getColumns2Rows().size());
                             }
                         } catch (Throwable t) {
