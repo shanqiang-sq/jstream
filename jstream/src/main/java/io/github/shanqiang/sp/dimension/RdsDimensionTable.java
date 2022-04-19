@@ -129,7 +129,7 @@ public abstract class RdsDimensionTable extends DimensionTable {
                             Table table = tableBuilder.build();
                             Index index = table.createIndex(primaryKeyColumnNames);
                             tableIndex = new TableIndex(table, index);
-                            loadedCallback.callback(that);
+                            callback(that);
                             logger.info("end to load {}, rows: {}, index.size: {}", myName, row, index.getColumns2Rows().size());
                         } catch (Throwable t) {
                             logger.error("", t);

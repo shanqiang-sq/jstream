@@ -18,6 +18,12 @@ public abstract class DimensionTable {
         this.loadedCallback = loadedCallback;
     }
 
+    protected void callback(DimensionTable dimensionTable) {
+        if (null != loadedCallback) {
+            loadedCallback.callback(dimensionTable);
+        }
+    }
+
     /**
      * for only care current data condition use this method to wait the dimension table finished loading then begin to consume
      * from upstream on current time make the task delay rapidly decrease
