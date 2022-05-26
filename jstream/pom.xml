@@ -60,6 +60,10 @@
                     <artifactId>protobuf-java</artifactId>
                     <groupId>com.google.protobuf</groupId>
                 </exclusion>
+                <exclusion>
+                    <groupId>com.alibaba</groupId>
+                    <artifactId>fastjson</artifactId>
+                </exclusion>
             </exclusions>
         </dependency>
 
@@ -67,6 +71,12 @@
             <groupId>com.aliyun.odps</groupId>
             <artifactId>odps-sdk-commons</artifactId>
             <version>${odps.version}</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.alibaba</groupId>
+                    <artifactId>fastjson</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
@@ -115,12 +125,24 @@
             <groupId>com.aliyun.openservices</groupId>
             <artifactId>aliyun-log</artifactId>
             <version>0.6.64</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.alibaba</groupId>
+                    <artifactId>fastjson</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
             <groupId>com.aliyun.openservices</groupId>
             <artifactId>loghub-client-lib</artifactId>
             <version>0.6.41</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.alibaba</groupId>
+                    <artifactId>fastjson</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
