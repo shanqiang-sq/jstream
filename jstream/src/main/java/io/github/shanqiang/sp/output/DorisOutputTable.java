@@ -5,6 +5,7 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.mysql.cj.jdbc.MysqlDataSource;
+import io.github.shanqiang.Threads;
 import io.github.shanqiang.exception.UnknownTypeException;
 import io.github.shanqiang.offheap.ByteArray;
 import io.github.shanqiang.sp.QueueSizeLogger;
@@ -27,24 +28,26 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
+import java.sql.*;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.sp.StreamProcessing.handleException;
+import static io.github.shanqiang.util.DateUtil.toDate;
 import static java.lang.Integer.toHexString;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 
 public class DorisOutputTable extends AbstractOutputTable {
     private static final Logger logger = LoggerFactory.getLogger(DorisOutputTable.class);
+    private static final long oneHour = 3600 * 1000;
 
     private final String jdbcHostPorts;
     private final String loadAddress;
@@ -64,11 +67,17 @@ public class DorisOutputTable extends AbstractOutputTable {
     private final String sign;
     private final long flushInterval;
 
+    private final long dataSpan;
+    private final String partitionByTimeColumn;
+    private final int buckets;
+    private final int replicationNum;
+    private final String storageMedium;
+    private final ScheduledExecutorService autoAddDropPartition;
     private final ThreadPoolExecutor threadPoolExecutor;
     private final QueueSizeLogger queueSizeLogger = new QueueSizeLogger();
     protected final QueueSizeLogger recordSizeLogger = new QueueSizeLogger();
 
-    final HttpClientBuilder httpClientBuilder = HttpClients
+    private final HttpClientBuilder httpClientBuilder = HttpClients
             .custom()
             .setRedirectStrategy(new DefaultRedirectStrategy() {
                 @Override
@@ -77,15 +86,43 @@ public class DorisOutputTable extends AbstractOutputTable {
                 }
             });
 
-    public DorisOutputTable(String jdbcHostPorts,
-                            String loadAddress,
-                            String user,
-                            String password,
-                            String database,
-                            String tableName,
-                            String[] distributedByColumns,
-                            Map<String, Type> columnTypeMap) throws IOException {
+    public DorisOutputTable(
+            String jdbcHostPorts,
+            String loadAddress,
+            String user,
+            String password,
+            String database,
+            String tableName,
+            String[] distributedByColumns,
+            String partitionByTimeColumn,
+            int buckets,
+            Map<String, Type> columnTypeMap) throws IOException {
         this(Runtime.getRuntime().availableProcessors(),
+                jdbcHostPorts,
+                loadAddress,
+                user,
+                password,
+                database,
+                tableName,
+                distributedByColumns,
+                partitionByTimeColumn,
+                buckets,
+                columnTypeMap);
+    }
+
+    public DorisOutputTable(
+            int thread,
+            String jdbcHostPorts,
+            String loadAddress,
+            String user,
+            String password,
+            String database,
+            String tableName,
+            String[] distributedByColumns,
+            String partitionByTimeColumn,
+            int buckets,
+            Map<String, Type> columnTypeMap) throws IOException {
+        this(thread,
                 40000,
                 Duration.ofSeconds(1),
                 jdbcHostPorts,
@@ -97,6 +134,11 @@ public class DorisOutputTable extends AbstractOutputTable {
                 distributedByColumns,
                 1,
                 false,
+                2,
+                partitionByTimeColumn,
+                buckets,
+                1,
+                "SSD",
                 columnTypeMap);
     }
 
@@ -115,19 +157,25 @@ public class DorisOutputTable extends AbstractOutputTable {
      * @param columnTypeMap
      * @throws IOException
      */
-    public DorisOutputTable(int thread,
-                            int batchSize,
-                            Duration flushInterval,
-                            String jdbcHostPorts,
-                            String loadAddress,
-                            String user,
-                            String password,
-                            String database,
-                            String tableName,
-                            String[] distributedByColumns,
-                            int maxRetryTimes,
-                            boolean autoDropTable,
-                            Map<String, Type> columnTypeMap) throws IOException {
+    public DorisOutputTable(
+            int thread,
+            int batchSize,
+            Duration flushInterval,
+            String jdbcHostPorts,
+            String loadAddress,
+            String user,
+            String password,
+            String database,
+            String tableName,
+            String[] distributedByColumns,
+            int maxRetryTimes,
+            boolean autoDropTable,
+            int dataSpanHours,
+            String partitionByTimeColumn,
+            int buckets,
+            int replicationNum,
+            String storageMedium,
+            Map<String, Type> columnTypeMap) throws IOException {
         super(thread);
         this.jdbcHostPorts = requireNonNull(jdbcHostPorts);
         this.loadAddress = requireNonNull(loadAddress);
@@ -145,6 +193,11 @@ public class DorisOutputTable extends AbstractOutputTable {
         this.batchSize = batchSize;
         this.flushInterval = requireNonNull(flushInterval).toMillis();
         this.autoDropTable = autoDropTable;
+        this.dataSpan = dataSpanHours * oneHour;
+        this.partitionByTimeColumn = requireNonNull(partitionByTimeColumn);
+        this.buckets = buckets;
+        this.replicationNum = replicationNum;
+        this.storageMedium = requireNonNull(storageMedium);
         this.columnTypeMap = requireNonNull(columnTypeMap);
         this.columnCount = columnTypeMap.size();
 
@@ -161,6 +214,7 @@ public class DorisOutputTable extends AbstractOutputTable {
 
         this.sign = "|DorisOutputTable|" + tableName + "|" + toHexString(hashCode());
 
+        this.autoAddDropPartition = newSingleThreadScheduledExecutor(Threads.threadsNamed("auto_add_drop_partition" + sign));
         threadPoolExecutor = new ThreadPoolExecutor(thread,
                 thread,
                 0,
@@ -220,23 +274,31 @@ public class DorisOutputTable extends AbstractOutputTable {
         /* 表不存在则创建表 */
         String createTableSql = format("CREATE TABLE IF NOT EXISTS %s (%s) ",
                 tableName, fieldsSchema);
-        createTableSql += format(" DISTRIBUTED BY HASH (%s) BUCKETS 64 " +
-                        " PROPERTIES(\"replication_num\" = \"1\");",
-                String.join(",", distributedByColumns));
+        createTableSql += format(" PARTITION BY RANGE (%s)" +
+                        " () " +
+                        " DISTRIBUTED BY HASH (%s) BUCKETS %d " +
+                        " PROPERTIES(\"replication_num\" = \"%d\", " +
+                        "\"in_memory\" = \"false\", " +
+                        "\"storage_medium\" = \"%s\");",
+                partitionByTimeColumn,
+                String.join(",", distributedByColumns),
+                buckets,
+                replicationNum,
+                storageMedium);
 
         logger.info(">>> create table sql: " + createTableSql);
 
         int retryCount = 0;
         while (retryCount < maxRetryTimes) {
             try {
-                Connection connection = connect();
-                if (autoDropTable) {
-                    PreparedStatement preparedStatement = connection.prepareStatement("DROP TABLE IF EXISTS " + tableName);
+                try (Connection connection = connect()) {
+                    if (autoDropTable) {
+                        PreparedStatement preparedStatement = connection.prepareStatement("DROP TABLE IF EXISTS " + tableName);
+                        preparedStatement.execute();
+                    }
+                    PreparedStatement preparedStatement = connection.prepareStatement(createTableSql);
                     preparedStatement.execute();
                 }
-                PreparedStatement preparedStatement = connection.prepareStatement(createTableSql);
-                preparedStatement.execute();
-
                 return;
             } catch (Throwable t) {
                 logger.error(">>> create table error: {}, has retried {} times", Throwables.getStackTraceAsString(t), retryCount);
@@ -253,6 +315,63 @@ public class DorisOutputTable extends AbstractOutputTable {
         }
 
         throw new IOException(">>> create doris table error for " + tableName + ", we have tried " + maxRetryTimes + " times");
+    }
+
+    private void dropPartitions() throws SQLException {
+        long start = System.currentTimeMillis() - dataSpan;
+        String partition = partitionName(start);
+
+        String sql = format("SHOW PARTITIONS FROM %s ", tableName);
+        try (Connection connection = connect()) {
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            ResultSet resultSet = preparedStatement.executeQuery();
+            ResultSetMetaData resultSetMetaData = resultSet.getMetaData();
+            while (resultSet.next()) {
+                for (int i = 1; i <= resultSetMetaData.getColumnCount(); i++) {
+                    if ("PartitionName".equalsIgnoreCase(resultSetMetaData.getColumnName(i))) {
+                        String partitionName = resultSet.getString(i);
+                        if (partitionName.compareTo(partition) <= 0) {
+                            dropPartition(partitionName);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void dropPartition(long start) throws SQLException {
+        dropPartition(partitionName(start));
+    }
+
+    private void dropPartition(String partition) throws SQLException {
+        String sql = format("ALTER TABLE %s DROP PARTITION IF EXISTS %s FORCE", tableName, partition);
+        try (Connection connection = connect()) {
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.execute();
+        }
+    }
+
+    private String partitionName(long ms) {
+        return "p" + toDate(ms, "yyyyMMddHH");
+    }
+
+    private void addPartition(long start) throws SQLException {
+        start = start / 1000 / 3600 * 3600 * 1000;
+        long end = start + oneHour;
+        String partition = partitionName(start);
+
+        String sql = format("ALTER TABLE %s ADD PARTITION IF NOT EXISTS %s VALUES[(\"%d\"), (\"%d\"))",
+                tableName, partition, start, end);
+
+        try (Connection connection = connect()) {
+            PreparedStatement preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.execute();
+
+            sql = format("ALTER TABLE %s MODIFY PARTITION %s SET (\"storage_medium\" = \"SSD\", \"storage_cooldown_time\" = \"9999-12-31 23:59:59\")",
+                    tableName, partition);
+            preparedStatement = connection.prepareStatement(sql);
+            preparedStatement.execute();
+        }
     }
 
     @Override
@@ -347,15 +466,44 @@ public class DorisOutputTable extends AbstractOutputTable {
         }
     }
 
+    private void addPartitions() throws SQLException {
+        long now = System.currentTimeMillis();
+        addPartition(now);
+        addPartition(now + oneHour);
+    }
+
+    @Override
     public void start() {
+        try {
+            addPartitions();
+            dropPartitions();
+        } catch (Throwable t) {
+            logger.error("", t);
+        }
+
+        autoAddDropPartition.scheduleWithFixedDelay(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    long now = System.currentTimeMillis();
+                    addPartition(now);
+                    addPartition(now + oneHour);
+
+                    dropPartition(now - dataSpan);
+                    dropPartition(now - dataSpan - oneHour);
+                } catch (Throwable t) {
+                    logger.error("", t);
+                }
+            }
+        }, 0, 1, TimeUnit.MINUTES);
+
         for (int i = 0; i < thread; i++) {
             threadPoolExecutor.submit(new Runnable() {
                 private long lastTime = 0;
                 private List<Object> values = new ArrayList<>();
                 private final Gson gson = new Gson();
-                private final CloseableHttpClient httpClient = httpClientBuilder.build();
 
-                private void load() throws IOException {
+                private void load(CloseableHttpClient httpClient) throws IOException {
                     insert(httpClient, values, gson);
                     values.clear();
                     lastTime = System.currentTimeMillis();
@@ -363,31 +511,35 @@ public class DorisOutputTable extends AbstractOutputTable {
 
                 @Override
                 public void run() {
-                    while (!Thread.interrupted()) {
-                        try {
-                            Table table = consume();
-                            List<Column> columns = table.getColumns();
+                    try (CloseableHttpClient httpClient = httpClientBuilder.build()) {
+                        while (!Thread.interrupted()) {
+                            try {
+                                Table table = consume();
+                                List<Column> columns = table.getColumns();
 
-                            if (System.currentTimeMillis() - lastTime >= flushInterval && values.size() > 0) {
-                                load();
-                            }
-
-                            for (int i = 0; i < table.size(); i++) {
-                                for (int j = 0; j < columns.size(); j++) {
-                                    values.add(columns.get(j).get(i));
+                                if (System.currentTimeMillis() - lastTime >= flushInterval && values.size() > 0) {
+                                    load(httpClient);
                                 }
-                                if (values.size() == batchSize * columns.size()) {
-                                    load();
-                                }
-                            }
 
-                        } catch (InterruptedException e) {
-                            logger.info("interrupted");
-                            break;
-                        } catch (Throwable t) {
-                            handleException(t);
-                            break;
+                                for (int i = 0; i < table.size(); i++) {
+                                    for (int j = 0; j < columns.size(); j++) {
+                                        values.add(columns.get(j).get(i));
+                                    }
+                                    if (values.size() == batchSize * columns.size()) {
+                                        load(httpClient);
+                                    }
+                                }
+
+                            } catch (InterruptedException e) {
+                                logger.info("interrupted");
+                                break;
+                            } catch (Throwable t) {
+                                handleException(t);
+                                break;
+                            }
                         }
+                    } catch (Throwable t) {
+                        logger.error("", t);
                     }
                 }
             });
@@ -397,5 +549,6 @@ public class DorisOutputTable extends AbstractOutputTable {
     @Override
     public void stop() {
         threadPoolExecutor.shutdownNow();
+        autoAddDropPartition.shutdownNow();
     }
 }
