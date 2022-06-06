@@ -1,6 +1,9 @@
 package io.github.shanqiang.sp.output;
 
+import io.github.shanqiang.table.ColumnTypeBuilder;
 import io.github.shanqiang.table.Table;
+import io.github.shanqiang.table.TableBuilder;
+import io.github.shanqiang.table.Type;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -13,6 +16,7 @@ public abstract class AbstractOutputTable implements OutputTable {
     protected final List<ArrayBlockingQueue<Table>> arrayBlockingQueueList;
     protected final int thread;
     protected final int queueDepth = 100;
+    protected final Table emptyTable;
     private final Random random = new Random();
 
     protected AbstractOutputTable(int thread) {
@@ -21,6 +25,10 @@ public abstract class AbstractOutputTable implements OutputTable {
         for (int i = 0; i < thread; i++) {
             arrayBlockingQueueList.add(new ArrayBlockingQueue<>(queueDepth));
         }
+        this.emptyTable = new TableBuilder(new ColumnTypeBuilder()
+                .column("no_use", Type.INT)
+                .build())
+                .build();
     }
 
     protected void putTable(Table table) throws InterruptedException {
@@ -37,6 +45,7 @@ public abstract class AbstractOutputTable implements OutputTable {
             }
 
             Thread.sleep(100);
+            return emptyTable;
         }
     }
 

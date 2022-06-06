@@ -51,9 +51,9 @@ public class DorisOutputTableTest {
         tableBuilder.append(2, System.currentTimeMillis());
         dorisOutputTable.produce(tableBuilder.build());
 
-        Thread.sleep(1000);
+        dorisOutputTable.stop();
 
-        dorisOutputTable.produce(new TableBuilder(columnTypeMap).build());
+        Thread.sleep(1000);
 
         MysqlFetcher mysqlFetcher = new MysqlFetcher(
                 "jdbc:mysql://10.232.24.31:8031/ecommerce",

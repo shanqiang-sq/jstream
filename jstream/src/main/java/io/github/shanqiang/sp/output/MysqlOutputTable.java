@@ -271,9 +271,6 @@ public class MysqlOutputTable extends AbstractOutputTable {
                         while (!Thread.interrupted()) {
                             Table table = consume();
                             List<Column> columns = table.getColumns();
-                            if (columns.size() != columnTypeMap.size()) {
-                                throw new InconsistentColumnSizeException();
-                            }
 
                             List<Object> values = new ArrayList<>();
                             for (int i = 0; i < table.size(); i++) {

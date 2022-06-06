@@ -538,6 +538,21 @@ public class DorisOutputTable extends AbstractOutputTable {
                                 break;
                             }
                         }
+                        //线程结束前load一下还没有写入doris的数据
+                        while (true) {
+                            Table table = consume();
+                            if (table.isEmpty()) {
+                                load(httpClient);
+                                break;
+                            }
+                            List<Column> columns = table.getColumns();
+
+                            for (int i = 0; i < table.size(); i++) {
+                                for (int j = 0; j < columns.size(); j++) {
+                                    values.add(columns.get(j).get(i));
+                                }
+                            }
+                        }
                     } catch (Throwable t) {
                         logger.error("", t);
                     }
