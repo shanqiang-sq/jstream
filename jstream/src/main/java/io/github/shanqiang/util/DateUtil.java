@@ -20,4 +20,8 @@ public class DateUtil {
     public static String toDate(long ms, String format) {
         return new SimpleDateFormat(format).format(new Date(ms));
     }
+
+    public static String toDate(long ms) {
+        return toDate(ms, "yyyy-MM-dd HH:mm:ss");
+    }
 }
