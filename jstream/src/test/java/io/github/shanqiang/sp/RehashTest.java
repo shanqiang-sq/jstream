@@ -18,14 +18,14 @@ public class RehashTest {
     /**
      * manual test for "triggered full gc" case
      */
-    public void test() {
+    public void test() throws InterruptedException {
         for (int i = 0; i < 100; i++) {
             rehash();
         }
     }
 
     @Test
-    public void rehash() {
+    public void rehash() throws InterruptedException {
         StreamProcessing streamProcessing = new StreamProcessing(2);
         Rehash rehash = streamProcessing.rehash("rehash1", "c1");
 

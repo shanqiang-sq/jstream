@@ -4,7 +4,6 @@ import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.google.gson.JsonObject;
 import io.github.shanqiang.Threads;
 import io.github.shanqiang.offheap.ByteArray;
-import io.github.shanqiang.sp.QueueSizeLogger;
 import io.github.shanqiang.sp.StreamProcessing;
 import io.github.shanqiang.table.Column;
 import io.github.shanqiang.table.Table;
@@ -25,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.util.IpUtil.getIp;
 import static io.github.shanqiang.util.ScalarUtil.toStr;
-import static java.lang.Integer.toHexString;
 import static java.lang.Runtime.getRuntime;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
@@ -51,11 +49,8 @@ public class KafkaOutputTable extends AbstractOutputTable {
     private final Properties properties;
     private final int batchSize;
     private volatile int[] allPartitions;
-    private final String sign;
     private final ScheduledExecutorService partitionsDetector;
     private final ThreadPoolExecutor threadPoolExecutor;
-    private final QueueSizeLogger queueSizeLogger = new QueueSizeLogger();
-    protected final QueueSizeLogger recordSizeLogger = new QueueSizeLogger();
     private final Random random = new Random();
 
     public KafkaOutputTable(String bootstrapServers,
@@ -73,7 +68,7 @@ public class KafkaOutputTable extends AbstractOutputTable {
                             int batchSize,
                             String bootstrapServers,
                             String topic) {
-        super(thread);
+        super(thread, "|KafkaOutputTable|" + topic);
         this.topic = requireNonNull(topic);
         Properties properties = new Properties();
         properties.put(BOOTSTRAP_SERVERS_CONFIG, requireNonNull(bootstrapServers));
@@ -81,7 +76,6 @@ public class KafkaOutputTable extends AbstractOutputTable {
         properties.put(VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.StringSerializer");
         this.properties = properties;
         this.batchSize = batchSize;
-        this.sign = "|KafkaOutputTable|" + topic + "|" + toHexString(hashCode());
         this.partitionsDetector = newSingleThreadScheduledExecutor(Threads.threadsNamed("partitions_detector" + sign));
         threadPoolExecutor = new ThreadPoolExecutor(thread,
                 thread,
@@ -93,8 +87,6 @@ public class KafkaOutputTable extends AbstractOutputTable {
 
     @Override
     public void produce(Table table) throws InterruptedException {
-        queueSizeLogger.logQueueSize("Kafka输出队列大小" + sign, arrayBlockingQueueList);
-        recordSizeLogger.logRecordSize("Kafka输出队列行数" + sign, arrayBlockingQueueList);
         putTable(table);
     }
 

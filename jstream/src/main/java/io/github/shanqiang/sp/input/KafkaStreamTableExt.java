@@ -2,6 +2,7 @@ package io.github.shanqiang.sp.input;
 
 import com.google.gson.Gson;
 import io.github.shanqiang.sp.Delay;
+import io.github.shanqiang.sp.StreamProcessing;
 import io.github.shanqiang.table.TableBuilder;
 import io.github.shanqiang.table.Type;
 import org.apache.kafka.clients.consumer.*;
@@ -88,8 +89,7 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
                                 tableBuilder.appendValue(1, record.key());
                                 tableBuilder.appendValue(2, record.value());
                             }
-                            queueSizeLogger.logQueueSize("input queue size" + kafkaStreamTable.sign, arrayBlockingQueueList);
-                            recordSizeLogger.logRecordSize("input queue rows" + kafkaStreamTable.sign, arrayBlockingQueueList);
+
                             arrayBlockingQueueList.get(threadId).put(tableBuilder.build());
                         } catch (InterruptException e) {
                             break;
@@ -97,6 +97,8 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
                             break;
                         }
                     }
+                } catch (Throwable t) {
+                    StreamProcessing.handleException(t);
                 }
             }
         });

@@ -1,16 +1,14 @@
 package io.github.shanqiang.sp.output;
 
-import io.github.shanqiang.exception.InconsistentColumnSizeException;
-import io.github.shanqiang.exception.UnknownTypeException;
-import io.github.shanqiang.sp.QueueSizeLogger;
-import io.github.shanqiang.table.Column;
-import io.github.shanqiang.table.Table;
-import io.github.shanqiang.table.Type;
 import com.google.common.base.Strings;
 import com.google.common.base.Throwables;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import com.mysql.cj.jdbc.MysqlDataSource;
+import io.github.shanqiang.exception.UnknownTypeException;
 import io.github.shanqiang.sp.StreamProcessing;
+import io.github.shanqiang.table.Column;
+import io.github.shanqiang.table.Table;
+import io.github.shanqiang.table.Type;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -30,7 +28,6 @@ import static io.github.shanqiang.util.ScalarUtil.toDouble;
 import static io.github.shanqiang.util.ScalarUtil.toInteger;
 import static io.github.shanqiang.util.ScalarUtil.toLong;
 import static io.github.shanqiang.util.ScalarUtil.toStr;
-import static java.lang.Integer.toHexString;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
@@ -46,12 +43,9 @@ public class MysqlOutputTable extends AbstractOutputTable {
     private final int batchSize;
     private final boolean autoDropTable;
     protected final Map<String, Type> columnTypeMap;
-    private final String sign;
     private final String insertPrefix;
 
     private final ThreadPoolExecutor threadPoolExecutor;
-    private final QueueSizeLogger queueSizeLogger = new QueueSizeLogger();
-    protected final QueueSizeLogger recordSizeLogger = new QueueSizeLogger();
 
     public MysqlOutputTable(String jdbcUrl,
                             String userName,
@@ -82,7 +76,7 @@ public class MysqlOutputTable extends AbstractOutputTable {
                             int maxRetryTimes,
                             boolean autoDropTable,
                             Map<String, Type> columnTypeMap) throws IOException {
-        super(thread);
+        super(thread, "|MysqlOutputTable|" + tableName);
         this.jdbcUrl = requireNonNull(jdbcUrl);
         this.userName = requireNonNull(userName);
         this.password = requireNonNull(password);
@@ -92,7 +86,6 @@ public class MysqlOutputTable extends AbstractOutputTable {
         this.batchSize = batchSize;
         this.autoDropTable = autoDropTable;
         this.columnTypeMap = requireNonNull(columnTypeMap);
-        this.sign = "|MysqlOutputTable|" + tableName + "|" + toHexString(hashCode());
         this.insertPrefix = "insert into " + tableName + " values ";
 
         threadPoolExecutor = new ThreadPoolExecutor(thread,
@@ -175,8 +168,6 @@ public class MysqlOutputTable extends AbstractOutputTable {
 
     @Override
     public void produce(Table table) throws InterruptedException {
-        queueSizeLogger.logQueueSize("Mysql输出队列大小" + sign, arrayBlockingQueueList);
-        recordSizeLogger.logRecordSize("Mysql输出队列行数" + sign, arrayBlockingQueueList);
         putTable(table);
     }
 

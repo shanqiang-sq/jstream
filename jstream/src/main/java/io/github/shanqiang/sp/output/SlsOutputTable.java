@@ -1,12 +1,11 @@
 package io.github.shanqiang.sp.output;
 
-import io.github.shanqiang.sp.QueueSizeLogger;
-import io.github.shanqiang.table.Column;
-import io.github.shanqiang.table.Table;
 import com.aliyun.openservices.log.Client;
 import com.aliyun.openservices.log.common.LogItem;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.github.shanqiang.sp.StreamProcessing;
+import io.github.shanqiang.table.Column;
+import io.github.shanqiang.table.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -17,7 +16,6 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.util.ScalarUtil.toStr;
-import static java.lang.Integer.toHexString;
 import static java.util.Objects.requireNonNull;
 
 public class SlsOutputTable extends AbstractOutputTable {
@@ -29,11 +27,8 @@ public class SlsOutputTable extends AbstractOutputTable {
     private final String project;
     private final String logstore;
     private final int batchSize;
-    private final String sign;
 
     private final ThreadPoolExecutor threadPoolExecutor;
-    private final QueueSizeLogger queueSizeLogger = new QueueSizeLogger();
-    protected final QueueSizeLogger recordSizeLogger = new QueueSizeLogger();
 
     public SlsOutputTable(String endPoint,
                           String accessId,
@@ -50,14 +45,13 @@ public class SlsOutputTable extends AbstractOutputTable {
                           String accessKey,
                           String project,
                           String logstore) {
-        super(thread);
+        super(thread, "|SlsOutputTable|" + project + "|" + logstore);
         this.endPoint = requireNonNull(endPoint);
         this.accessId = requireNonNull(accessId);
         this.accessKey = requireNonNull(accessKey);
         this.project = requireNonNull(project);
         this.logstore = requireNonNull(logstore);
         this.batchSize = batchSize;
-        this.sign = "|SlsOutputTable|" + project + "|" + logstore + "|" + toHexString(hashCode());
 
         threadPoolExecutor = new ThreadPoolExecutor(thread,
                 thread,
@@ -69,8 +63,6 @@ public class SlsOutputTable extends AbstractOutputTable {
 
     @Override
     public void produce(Table table) throws InterruptedException {
-        queueSizeLogger.logQueueSize("Sls输出队列大小" + sign, arrayBlockingQueueList);
-        recordSizeLogger.logRecordSize("Sls输出队列行数" + sign, arrayBlockingQueueList);
         putTable(table);
     }
 

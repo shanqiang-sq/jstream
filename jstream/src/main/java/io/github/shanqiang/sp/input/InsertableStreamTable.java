@@ -7,15 +7,17 @@ import org.slf4j.LoggerFactory;
 
 import java.util.Map;
 
+import static java.lang.Runtime.getRuntime;
+
 public class InsertableStreamTable extends AbstractStreamTable {
     private static final Logger logger = LoggerFactory.getLogger(InsertableStreamTable.class);
 
     public InsertableStreamTable(Map<String, Type> columnTypeMap) {
-        super(columnTypeMap);
+        this(getRuntime().availableProcessors(), columnTypeMap);
     }
 
     public InsertableStreamTable(int thread, Map<String, Type> columnTypeMap) {
-        super(thread, columnTypeMap);
+        super(thread, columnTypeMap, "|InsertableStreamTable");
     }
 
     public void insert(int threadId, Comparable... values) {

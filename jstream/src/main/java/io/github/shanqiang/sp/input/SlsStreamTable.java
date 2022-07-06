@@ -36,6 +36,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static io.github.shanqiang.sp.QueueSizeLogger.addQueueSizeLog;
+import static io.github.shanqiang.sp.QueueSizeLogger.addRecordSizeLog;
 import static java.lang.Integer.toHexString;
 import static java.util.Objects.requireNonNull;
 
@@ -50,7 +52,6 @@ public class SlsStreamTable extends AbstractStreamTable {
     private final String consumerGroup;
     private final int consumeFrom;
     private final int consumeTo;
-    private final String sign;
     private long finishDelayMs = 30000;
     private long lastUpdateMs = System.currentTimeMillis();
     private final Set<Integer> shardSet = new HashSet<>();
@@ -134,7 +135,7 @@ public class SlsStreamTable extends AbstractStreamTable {
                           int consumeFrom,
                           int consumeTo,
                           Map<String, Type> columnTypeMap) {
-        super(thread, columnTypeMap);
+        super(thread, columnTypeMap, "|SlsStreamTable|" + project + "|" + logstore);
 
         this.endPoint = requireNonNull(endPoint);
         this.accessId = requireNonNull(accessId);
@@ -144,7 +145,6 @@ public class SlsStreamTable extends AbstractStreamTable {
         this.consumerGroup = requireNonNull(consumerGroup);
         this.consumeFrom = consumeFrom;
         this.consumeTo = consumeTo;
-        this.sign = "|SlsStreamTable|" + project + "|" + logstore + "|" + toHexString(hashCode());
 
         workers = new ArrayList<>(thread);
     }
@@ -273,8 +273,6 @@ public class SlsStreamTable extends AbstractStreamTable {
                     });
                 }
 
-                queueSizeLogger.logQueueSize("输入队列大小" + slsStreamTable.sign, arrayBlockingQueueList);
-                recordSizeLogger.logRecordSize("输入队列行数" + slsStreamTable.sign, arrayBlockingQueueList);
                 arrayBlockingQueueList.get(threadId).put(tableBuilder.build());
 
                 return null;

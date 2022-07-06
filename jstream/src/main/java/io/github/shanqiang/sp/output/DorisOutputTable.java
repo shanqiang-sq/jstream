@@ -8,7 +8,6 @@ import com.mysql.cj.jdbc.MysqlDataSource;
 import io.github.shanqiang.Threads;
 import io.github.shanqiang.exception.UnknownTypeException;
 import io.github.shanqiang.offheap.ByteArray;
-import io.github.shanqiang.sp.QueueSizeLogger;
 import io.github.shanqiang.table.Column;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.Type;
@@ -28,7 +27,11 @@ import org.slf4j.LoggerFactory;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -40,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.sp.StreamProcessing.handleException;
 import static io.github.shanqiang.util.DateUtil.toDate;
-import static java.lang.Integer.toHexString;
 import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
@@ -64,7 +66,6 @@ public class DorisOutputTable extends AbstractOutputTable {
     protected final Map<String, Type> columnTypeMap;
     private final int columnCount;
     private final String jsonpaths;
-    private final String sign;
     private final long flushInterval;
 
     private final long dataSpan;
@@ -74,8 +75,6 @@ public class DorisOutputTable extends AbstractOutputTable {
     private final String storageMedium;
     private final ScheduledExecutorService autoAddDropPartition;
     private final ThreadPoolExecutor threadPoolExecutor;
-    private final QueueSizeLogger queueSizeLogger = new QueueSizeLogger();
-    protected final QueueSizeLogger recordSizeLogger = new QueueSizeLogger();
 
     private final HttpClientBuilder httpClientBuilder = HttpClients
             .custom()
@@ -176,7 +175,7 @@ public class DorisOutputTable extends AbstractOutputTable {
             int replicationNum,
             String storageMedium,
             Map<String, Type> columnTypeMap) throws IOException {
-        super(thread);
+        super(thread, "|DorisOutputTable|" + tableName);
         this.jdbcHostPorts = requireNonNull(jdbcHostPorts);
         this.loadAddress = requireNonNull(loadAddress);
         this.user = requireNonNull(user);
@@ -211,8 +210,6 @@ public class DorisOutputTable extends AbstractOutputTable {
         sb.setLength(sb.length() - 1);
         sb.append(']');
         this.jsonpaths = sb.toString();
-
-        this.sign = "|DorisOutputTable|" + tableName + "|" + toHexString(hashCode());
 
         this.autoAddDropPartition = newSingleThreadScheduledExecutor(Threads.threadsNamed("auto_add_drop_partition" + sign));
         threadPoolExecutor = new ThreadPoolExecutor(thread,
@@ -376,8 +373,6 @@ public class DorisOutputTable extends AbstractOutputTable {
 
     @Override
     public void produce(Table table) throws InterruptedException {
-        queueSizeLogger.logQueueSize("doris_output_queue_size" + sign, arrayBlockingQueueList);
-        recordSizeLogger.logRecordSize("doris_output_queue_rows" + sign, arrayBlockingQueueList);
         putTable(table);
     }
 

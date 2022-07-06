@@ -1,15 +1,16 @@
 package io.github.shanqiang.sp.input;
 
-import io.github.shanqiang.exception.UnknownTypeException;
-import io.github.shanqiang.offheap.ByteArray;
-import io.github.shanqiang.sp.Delay;
-import io.github.shanqiang.table.TableBuilder;
-import io.github.shanqiang.table.Type;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import io.github.shanqiang.SystemProperty;
 import io.github.shanqiang.Threads;
+import io.github.shanqiang.exception.UnknownTypeException;
+import io.github.shanqiang.offheap.ByteArray;
+import io.github.shanqiang.sp.Delay;
+import io.github.shanqiang.sp.StreamProcessing;
+import io.github.shanqiang.table.TableBuilder;
+import io.github.shanqiang.table.Type;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -34,7 +35,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.sp.input.kafka.MyKafkaConsumer.newKafkaConsumer;
-import static java.lang.Integer.toHexString;
 import static java.util.Arrays.asList;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
@@ -51,7 +51,6 @@ public class KafkaStreamTable extends AbstractStreamTable {
 
     protected final Properties properties;
     private final String topic;
-    protected final String sign;
     private final long consumeFrom;
     protected final long consumeTo;
     protected final int myHash;
@@ -108,7 +107,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
                                long consumeFrom,
                                long consumeTo,
                                Map<String, Type> columnTypeMap) {
-        super(0, columnTypeMap);
+        super(0, columnTypeMap, "|KafkaStreamTable|" + topic);
         this.topic = requireNonNull(topic);
         Properties properties = new Properties();
         properties.put(BOOTSTRAP_SERVERS_CONFIG, requireNonNull(bootstrapServers));
@@ -120,7 +119,6 @@ public class KafkaStreamTable extends AbstractStreamTable {
         properties.put(AUTO_OFFSET_RESET_CONFIG, "none");
 
         this.properties = properties;
-        this.sign = "|KafkaStreamTable|" + topic + "|" + toHexString(hashCode());
         this.partitionsDetector = newSingleThreadScheduledExecutor(Threads.threadsNamed("partitions_detector" + sign));
         this.consumeFrom = consumeFrom;
         this.consumeTo = consumeTo;
@@ -209,8 +207,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
                                     }
                                 }
                             }
-                            queueSizeLogger.logQueueSize("input queue size" + kafkaStreamTable.sign, arrayBlockingQueueList);
-                            recordSizeLogger.logRecordSize("input queue rows" + kafkaStreamTable.sign, arrayBlockingQueueList);
+
                             arrayBlockingQueueList.get(threadId).put(tableBuilder.build());
                         } catch (InterruptException e) {
                             break;
@@ -218,6 +215,8 @@ public class KafkaStreamTable extends AbstractStreamTable {
                             break;
                         }
                     }
+                } catch (Throwable t) {
+                    StreamProcessing.handleException(t);
                 }
             }
         });

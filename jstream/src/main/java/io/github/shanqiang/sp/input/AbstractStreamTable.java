@@ -1,10 +1,9 @@
 package io.github.shanqiang.sp.input;
 
+import io.github.shanqiang.offheap.ByteArray;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.TableBuilder;
 import io.github.shanqiang.table.Type;
-import io.github.shanqiang.offheap.ByteArray;
-import io.github.shanqiang.sp.QueueSizeLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,6 +17,9 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
 
+import static io.github.shanqiang.sp.QueueSizeLogger.addQueueSizeLog;
+import static io.github.shanqiang.sp.QueueSizeLogger.addRecordSizeLog;
+import static java.lang.Integer.toHexString;
 import static java.util.Objects.requireNonNull;
 
 public abstract class AbstractStreamTable implements StreamTable {
@@ -45,18 +47,13 @@ public abstract class AbstractStreamTable implements StreamTable {
     protected final Duration batch = Duration.ofSeconds(1);
     protected final int thread;
     protected final int queueDepth = 100;
-    protected final QueueSizeLogger queueSizeLogger = new QueueSizeLogger();
-    protected final QueueSizeLogger recordSizeLogger = new QueueSizeLogger();
+    protected final String sign;
     protected long sleepMs = 100;
     private final Random random = new Random();
 
     protected final List<ArrayBlockingQueue<Table>> arrayBlockingQueueList;
 
-    protected AbstractStreamTable(Map<String, Type> columnTypeMap) {
-        this(Runtime.getRuntime().availableProcessors(), columnTypeMap);
-    }
-
-    protected AbstractStreamTable(int thread, Map<String, Type> columnTypeMap) {
+    protected AbstractStreamTable(int thread, Map<String, Type> columnTypeMap, String sign) {
         if (thread < 0) {
             throw new IllegalArgumentException();
         }
@@ -67,6 +64,8 @@ public abstract class AbstractStreamTable implements StreamTable {
             throw new IllegalArgumentException();
         }
         this.emptyTable = new TableBuilder(columnTypeMap).build();
+
+        this.sign = requireNonNull(sign);
 
         columnName2ByteArray = new HashMap<>();
         columnNames = new HashSet<>();
@@ -89,6 +88,9 @@ public abstract class AbstractStreamTable implements StreamTable {
                 add(new ArrayBlockingQueue<>(queueDepth));
             }
         }};
+
+        addQueueSizeLog("输入队列大小" + sign + "|" + toHexString(hashCode()), arrayBlockingQueueList);
+        addRecordSizeLog("输入队列行数" + sign + "|" + toHexString(hashCode()), arrayBlockingQueueList);
     }
 
     @Override

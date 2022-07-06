@@ -22,7 +22,7 @@ public class DataAnalysis extends StreamProcessing {
         super(thread, Duration.ofSeconds(0), streamTable);
     }
 
-    public List<Table>[] rehashAllData(String uniqueName, String... hashByColumnNames) {
+    public List<Table>[] rehashAllData(String uniqueName, String... hashByColumnNames) throws InterruptedException {
         Rehash rehash = rehash(uniqueName, hashByColumnNames);
         List<Table>[] ret = new List[thread];
         for (int i = 0; i < thread; i++) {

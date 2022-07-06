@@ -10,6 +10,11 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 
+import static io.github.shanqiang.sp.QueueSizeLogger.addQueueSizeLog;
+import static io.github.shanqiang.sp.QueueSizeLogger.addRecordSizeLog;
+import static java.lang.Integer.toHexString;
+import static java.util.Objects.requireNonNull;
+
 public abstract class AbstractOutputTable implements OutputTable {
     protected static final String __time__ = "__time__";
 
@@ -17,9 +22,10 @@ public abstract class AbstractOutputTable implements OutputTable {
     protected final int thread;
     protected final int queueDepth = 100;
     protected final Table emptyTable;
+    protected final String sign;
     private final Random random = new Random();
 
-    protected AbstractOutputTable(int thread) {
+    protected AbstractOutputTable(int thread, String sign) {
         this.thread = thread;
         arrayBlockingQueueList = new ArrayList<>(thread);
         for (int i = 0; i < thread; i++) {
@@ -29,6 +35,10 @@ public abstract class AbstractOutputTable implements OutputTable {
                 .column("no_use", Type.INT)
                 .build())
                 .build();
+        this.sign = requireNonNull(sign);
+
+        addQueueSizeLog("输出队列大小" + sign + "|" + toHexString(hashCode()), arrayBlockingQueueList);
+        addRecordSizeLog("输出队列行数" + sign + "|" + toHexString(hashCode()), arrayBlockingQueueList);
     }
 
     protected void putTable(Table table) throws InterruptedException {

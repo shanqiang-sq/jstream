@@ -1,27 +1,30 @@
 package io.github.shanqiang.sp;
 
-import io.github.shanqiang.network.client.Client;
-import io.github.shanqiang.network.server.Server;
-import io.github.shanqiang.table.Table;
 import io.github.shanqiang.SystemProperty;
 import io.github.shanqiang.Threads;
 import io.github.shanqiang.network.Command;
+import io.github.shanqiang.network.client.Client;
+import io.github.shanqiang.network.server.Server;
+import io.github.shanqiang.table.Table;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.net.ssl.SSLException;
-
 import java.nio.ByteBuffer;
 import java.security.cert.CertificateException;
 import java.time.Duration;
+
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
+import static io.github.shanqiang.sp.QueueSizeLogger.addQueueSizeLog;
 import static io.github.shanqiang.table.Table.createEmptyTableLike;
 import static java.lang.Math.abs;
 import static java.lang.String.format;
@@ -37,18 +40,28 @@ public class Rehash {
     private final int myHash;
     private final int serverCount;
     private final String[] hashByColumnNames;
-    private final List<Table>[] tablesInThread;
-    private final Object[] locks;
     private final Server server;
     private final Client[][] clients;
     private final Table[][][] tablesInServer;
     private final int batchSize = 40000;
     private final long flushInterval = 1000;
-    private volatile long lastFlushTime;
+    private final long[] lastFlushTime;
     private final Duration requestTimeout = Duration.ofSeconds(30);
     private final ReentrantLock reentrantLock = new ReentrantLock();
     private final Condition condition = reentrantLock.newCondition();
     private final boolean[] finished;
+
+    private static class TableRow {
+        private final Table table;
+        private final int row;
+
+        private TableRow(Table table, int row) {
+            this.table = table;
+            this.row = row;
+        }
+    }
+
+    private final List<BlockingQueue<TableRow>> blockingQueueInThread;
 
     /**
      * java -jar jstream_task.jar -Dself=localhost:8888 -Dall=localhost:8888,127.0.0.1:9999
@@ -60,6 +73,14 @@ public class Rehash {
      */
     Rehash(int thread, String uniqueName, String... hashByColumnNames) {
         this.thread = thread;
+        this.lastFlushTime = new long[thread];
+
+        blockingQueueInThread = new ArrayList<>(thread);
+        for (int i = 0; i < thread; i++) {
+            blockingQueueInThread.add(new ArrayBlockingQueue(2 * batchSize));
+        }
+        addQueueSizeLog(uniqueName, blockingQueueInThread);
+
         this.uniqueName = requireNonNull(uniqueName);
         this.hashByColumnNames = requireNonNull(hashByColumnNames);
         if (hashByColumnNames.length < 1) {
@@ -94,13 +115,6 @@ public class Rehash {
             for (int j = 0; j < serverCount; j++) {
                 tablesInServer[i][j] = new Table[thread];
             }
-        }
-
-        locks = new Object[thread];
-        tablesInThread = new ArrayList[thread];
-        for (int i = 0; i < thread; i++) {
-            locks[i] = new Object();
-            tablesInThread[i] = new ArrayList<>();
         }
 
         rehashes.put(uniqueName, this);
@@ -214,8 +228,8 @@ public class Rehash {
     public static int fromOtherServer(String uniqueName, int thread, ByteBuffer data) {
         Rehash rehash = rehashes.get(uniqueName);
         Table table = Table.deserialize(data);
-        synchronized (rehash.locks[thread]) {
-            rehash.tablesInThread[thread].add(table);
+        for (int i = 0; i < table.size(); i++) {
+            rehash.blockingQueueInThread.get(thread).add(new TableRow(table, i));
         }
         return table.size();
     }
@@ -228,21 +242,6 @@ public class Rehash {
         }
         tablesInServer[myThreadIndex][i][j].append(table, row);
         flushBySize(i, j, myThreadIndex);
-    }
-
-    private void flushByInterval(int myThreadIndex) {
-        long now = System.currentTimeMillis();
-        if (now - lastFlushTime >= flushInterval) {
-            for (int i = 0; i < serverCount; i++) {
-                if (i == myHash) {
-                    continue;
-                }
-                for (int j = 0; j < thread; j++) {
-                    request(i, j, myThreadIndex);
-                }
-            }
-            lastFlushTime = now;
-        }
     }
 
     private int requestWithRetry(int server, int myThreadIndex, Table table, int toThread) {
@@ -283,29 +282,40 @@ public class Rehash {
         }
     }
 
+    private void flushByInterval(int myThreadIndex) {
+        long now = System.currentTimeMillis();
+        if (now - lastFlushTime[myThreadIndex] >= flushInterval) {
+            for (int i = 0; i < serverCount; i++) {
+                if (i == myHash) {
+                    continue;
+                }
+                for (int j = 0; j < thread; j++) {
+                    request(i, j, myThreadIndex);
+                }
+            }
+            lastFlushTime[myThreadIndex] = now;
+        }
+    }
+
     private void flushBySize(int serverHash, int toThread, int myThreadIndex) {
         if (tablesInServer[myThreadIndex][serverHash][toThread].size() >= batchSize) {
             request(serverHash, toThread, myThreadIndex);
         }
     }
 
-    public List<Table> rebalance(Table table, int myThreadIndex) {
+    public List<Table> rebalance(Table table, int myThreadIndex) throws InterruptedException {
         return rehash(table, myThreadIndex, false);
     }
 
-    public List<Table> rehash(Table table, int myThreadIndex) {
+    public List<Table> rehash(Table table, int myThreadIndex) throws InterruptedException {
         return rehash(table, myThreadIndex, true);
     }
 
-    private List<Table> rehash(Table table, int myThreadIndex, boolean isHash) {
+    private List<Table> rehash(Table table, int myThreadIndex, boolean isHash) throws InterruptedException {
         //长时间没有数据的情况下也可以被触发，参见AbstractStreamTable.consume
         flushByInterval(myThreadIndex);
 
-        Table[] tables = new Table[thread];
-        for (int i = 0; i < thread; i++) {
-            tables[i] = createEmptyTableLike(table);
-        }
-
+        Table tmp = createEmptyTableLike(table);
         Random random = null;
         if (!isHash) {
             random = new Random();
@@ -326,29 +336,41 @@ public class Rehash {
                 continue;
             }
             h %= thread;
-            tables[h].append(table, i);
-        }
-
-        for (int i = 0; i < thread; i++) {
-            if (i == myThreadIndex) {
-                continue;
-            }
-            synchronized (locks[i]) {
-                tablesInThread[i].add(tables[i]);
+            if (h == myThreadIndex) {
+                tmp.append(table, i);
+            } else {
+                blockingQueueInThread.get(h).put(new TableRow(table, i));
             }
         }
 
-        List<Table> ret = tablesInThread(myThreadIndex);
-        ret.add(tables[myThreadIndex]);
+        while (tmp.size() < batchSize) {
+            TableRow tableRow = blockingQueueInThread.get(myThreadIndex).poll();
+            if (null == tableRow) {
+                break;
+            }
+            tmp.append(tableRow.table, tableRow.row);
+        }
+
+        List<Table> ret = new ArrayList<>(1);
+        ret.add(tmp);
         return ret;
     }
 
-    List<Table> tablesInThread(int threadIndex) {
-        List<Table> ret;
-        synchronized (locks[threadIndex]) {
-            ret = tablesInThread[threadIndex];
-            tablesInThread[threadIndex] = new ArrayList<>();
+    List<Table> tablesInThread(int threadIndex) throws InterruptedException {
+        List<Table> ret = new ArrayList<>(1);
+        BlockingQueue<TableRow> blockingQueue = blockingQueueInThread.get(threadIndex);
+        if (blockingQueue.size() <= 0) {
+            return ret;
         }
+
+        TableRow tableRow = blockingQueue.poll();
+        Table table = createEmptyTableLike(tableRow.table);
+        while (null != tableRow) {
+            table.append(tableRow.table, tableRow.row);
+            tableRow = blockingQueue.poll();
+        }
+
+        ret.add(table);
         return ret;
     }
 }
