@@ -4,14 +4,12 @@ import io.github.shanqiang.table.ColumnTypeBuilder;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.TableBuilder;
 import io.github.shanqiang.table.Type;
-import io.github.shanqiang.window.TimeWindowTest;
 import org.junit.Test;
 
-import java.time.Duration;
 import java.util.List;
 import java.util.Map;
-
-import static org.junit.Assert.*;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 
 public class RehashTest {
 
@@ -41,13 +39,29 @@ public class RehashTest {
             tableBuilder.append(0, "c1v1");
             tableBuilder.append(1, System.currentTimeMillis());
         }
+        final Table finalTable = tableBuilder.build();
 
-        List<Table> tableList1 = rehash.rehash(tableBuilder.build(), 1);
-        assert tableList1.get(0).size() == 0;
+        BlockingQueue<Table> blockingQueue = new ArrayBlockingQueue<>(2);
+        blockingQueue.add(finalTable);
+        blockingQueue.add(finalTable);
 
-        List<Table> tableList2 = rehash.rehash(tableBuilder.build(), 0);
-        assert tableList2.get(0).size() == N;
-        assert tableList2.get(1).size() == N;
+        int[] a = new int[2];
+        streamProcessing.compute(new Compute() {
+            @Override
+            public void compute(int myThreadIndex) throws InterruptedException {
+                Table table = blockingQueue.poll();
+                if (null == table) {
+                    table = Table.createEmptyTableLike(finalTable);
+                }
+                List<Table> tableList1 = rehash.rehash(table, myThreadIndex);
+                a[myThreadIndex] += tableList1.get(0).size();
+                if (a[0] >= 2 * N) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+        });
+        assert a[0] == 2 * N;
+        assert a[1] == 0;
 
         long end = System.currentTimeMillis();
         System.out.println(String.format("%f", (end - start) / 1000.0));

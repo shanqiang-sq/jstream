@@ -21,6 +21,7 @@ import java.util.Random;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -43,8 +44,8 @@ public class Rehash {
     private final Server server;
     private final Client[][] clients;
     private final Table[][][] tablesInServer;
-    private final int batchSize = 40000;
-    private final long flushInterval = 1000;
+    private final int batchSize;
+    private final long flushInterval;
     private final long[] lastFlushTime;
     private final Duration requestTimeout = Duration.ofSeconds(30);
     private final ReentrantLock reentrantLock = new ReentrantLock();
@@ -63,6 +64,10 @@ public class Rehash {
 
     private final List<BlockingQueue<TableRow>> blockingQueueInThread;
 
+    Rehash(int thread, String uniqueName, String... hashByColumnNames) {
+        this(thread, 40000, 1000, uniqueName, hashByColumnNames);
+    }
+
     /**
      * java -jar jstream_task.jar -Dself=localhost:8888 -Dall=localhost:8888,127.0.0.1:9999
      *
@@ -71,7 +76,10 @@ public class Rehash {
      *                   automatically generate this name may lead to subtle race condition problem in concurrent case,
      *                   "name order" on different server may be different so let user define this name may be more sensible.
      */
-    Rehash(int thread, String uniqueName, String... hashByColumnNames) {
+    Rehash(int thread, int batchSize, long flushInterval, String uniqueName, String... hashByColumnNames) {
+        this.batchSize = batchSize;
+        this.flushInterval = flushInterval;
+
         this.thread = thread;
         this.lastFlushTime = new long[thread];
 
@@ -339,21 +347,31 @@ public class Rehash {
             if (h == myThreadIndex) {
                 tmp.append(table, i);
             } else {
-                blockingQueueInThread.get(h).put(new TableRow(table, i));
+                // 自己的队列空对方的队列满的情况下会死循环, timeout 100ms确保CPU不会无谓费电
+                while (!blockingQueueInThread.get(h).offer(new TableRow(table, i), 100, TimeUnit.MILLISECONDS)) {
+                    // offer不到队列里的情况下大家先消费一下自己队列里的数据之后再尝试offer否则互相都offer不进去导致死锁
+                    consumeAll(tmp, myThreadIndex);
+                }
             }
         }
 
-        while (tmp.size() < batchSize) {
-            TableRow tableRow = blockingQueueInThread.get(myThreadIndex).poll();
-            if (null == tableRow) {
-                break;
-            }
-            tmp.append(tableRow.table, tableRow.row);
-        }
+        consumeAll(tmp, myThreadIndex);
 
         List<Table> ret = new ArrayList<>(1);
         ret.add(tmp);
         return ret;
+    }
+
+    private void consumeAll(Table table, int myThreadIndex) {
+        BlockingQueue<TableRow> blockingQueue = blockingQueueInThread.get(myThreadIndex);
+        TableRow tableRow = blockingQueue.poll();
+        while (null != tableRow) {
+            // 会不会某个线程快某个线程慢导致慢的那个线程的tmp持续变大？不会。
+            // 因为慢的线程可以offer到快的线程里而快的线程offer不到慢的线程里（慢的线程队列更容易满）从而使它们速度拉平
+            // 极特殊的情况下比如数据倾斜特别严重的情况下可能出现多个线程往一个线程里持续灌数据的情况导致tmp一直增涨到OOM
+            table.append(tableRow.table, tableRow.row);
+            tableRow = blockingQueue.poll();
+        }
     }
 
     List<Table> tablesInThread(int threadIndex) throws InterruptedException {

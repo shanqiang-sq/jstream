@@ -53,6 +53,10 @@ public class StreamProcessing {
         return new Rehash(thread, uniqueName, hashByColumnNames);
     }
 
+    public Rehash rehash(int batchSize, long flushInterval, String uniqueName, String... hashByColumnNames) {
+        return new Rehash(thread, batchSize, flushInterval, uniqueName, hashByColumnNames);
+    }
+
     private boolean isFinished() {
         if (streamTables.length <= 0) {
             return false;
