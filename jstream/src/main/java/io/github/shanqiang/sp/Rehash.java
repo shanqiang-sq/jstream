@@ -85,7 +85,7 @@ public class Rehash {
 
         blockingQueueInThread = new ArrayList<>(thread);
         for (int i = 0; i < thread; i++) {
-            blockingQueueInThread.add(new ArrayBlockingQueue(2 * batchSize));
+            blockingQueueInThread.add(new ArrayBlockingQueue(Integer.MAX_VALUE));
         }
         addQueueSizeLog(uniqueName, blockingQueueInThread);
 
@@ -347,11 +347,8 @@ public class Rehash {
             if (h == myThreadIndex) {
                 tmp.append(table, i);
             } else {
-                // 自己的队列空对方的队列满的情况下会死循环, timeout 100ms确保CPU不会无谓费电
-                while (!blockingQueueInThread.get(h).offer(new TableRow(table, i), 100, TimeUnit.MILLISECONDS)) {
-                    // offer不到队列里的情况下大家先消费一下自己队列里的数据之后再尝试offer否则互相都offer不进去导致死锁
-                    consumeAll(tmp, myThreadIndex);
-                }
+                // 队列大小为Integer.MAX_VALUE，会OOM（这个有队列大小监控addQueueSizeLog）但不会因为线程间相互put不进去导致死锁
+                blockingQueueInThread.get(h).put(new TableRow(table, i));
             }
         }
 
@@ -366,9 +363,6 @@ public class Rehash {
         BlockingQueue<TableRow> blockingQueue = blockingQueueInThread.get(myThreadIndex);
         TableRow tableRow = blockingQueue.poll();
         while (null != tableRow) {
-            // 会不会某个线程快某个线程慢导致慢的那个线程的tmp持续变大？不会。
-            // 因为慢的线程可以offer到快的线程里而快的线程offer不到慢的线程里（慢的线程队列更容易满）从而使它们速度拉平
-            // 极特殊的情况下比如数据倾斜特别严重的情况下可能出现多个线程往一个线程里持续灌数据的情况导致tmp一直增涨到OOM
             table.append(tableRow.table, tableRow.row);
             tableRow = blockingQueue.poll();
         }
