@@ -65,7 +65,7 @@ public class Rehash {
     private final List<BlockingQueue<TableRow>> blockingQueueInThread;
 
     Rehash(int thread, String uniqueName, String... hashByColumnNames) {
-        this(thread, 40000, 1000, uniqueName, hashByColumnNames);
+        this(thread, 40_0000, 1000, uniqueName, hashByColumnNames);
     }
 
     /**
