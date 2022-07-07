@@ -65,7 +65,7 @@ public class RehashTest {
 
         long end = System.currentTimeMillis();
         System.out.println(String.format("%f", (end - start) / 1000.0));
-        assert end - start < 2000;
+        assert end - start < 5000;
 
         rehash.close();
     }
