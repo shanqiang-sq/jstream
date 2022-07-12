@@ -1,7 +1,9 @@
 package io.github.shanqiang.offheap;
 
+import static io.github.shanqiang.offheap.InternalUnsafe.getLong;
 import static java.lang.Integer.min;
 import static java.util.Objects.requireNonNull;
+import static sun.misc.Unsafe.ARRAY_BYTE_BASE_OFFSET;
 
 public class ByteArray implements Comparable<ByteArray> {
     private final byte[] bytes;
@@ -53,7 +55,7 @@ public class ByteArray implements Comparable<ByteArray> {
             return true;
         }
         if (anObject instanceof ByteArray) {
-            ByteArray that = (ByteArray)anObject;
+            ByteArray that = (ByteArray) anObject;
             if (length == that.length) {
                 for (int i = 0; i < length; i++) {
                     if (this.bytes[this.offset + i] != that.bytes[that.offset + i]) {
@@ -70,7 +72,13 @@ public class ByteArray implements Comparable<ByteArray> {
     public int hashCode() {
         int h = hash;
         if (h == 0 && length > 0) {
-            for (int i = 0; i < length; i++) {
+            int mod = length % Long.BYTES;
+            for (int i = 0; i < length - mod; i += Long.BYTES) {
+                long l = getLong(bytes, ARRAY_BYTE_BASE_OFFSET + i);
+                h = 31 * h + (int) (l ^ l >>> 32);
+            }
+
+            for (int i = length - mod; i < length; i++) {
                 h = 31 * h + bytes[offset + i];
             }
             hash = h;

@@ -1,5 +1,7 @@
-package io.github.shanqiang.offheap;
+package io.github.shanqiang.offheap.buffer;
 
+import io.github.shanqiang.offheap.BufferOffheap;
+import io.github.shanqiang.offheap.InternalUnsafe;
 import org.openjdk.jol.info.ClassLayout;
 
 import static io.github.shanqiang.offheap.InternalUnsafe.copyMemory;

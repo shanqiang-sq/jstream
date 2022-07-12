@@ -459,7 +459,7 @@ public class InternalUnsafe {
         if (null == dest) {
             checkBound(destAddress, length);
         }
-        long bytesToCopy = length - (length % 8);
+        long bytesToCopy = length - (length % Long.BYTES);
         unsafe.copyMemory(src, srcAddress, dest, destAddress, bytesToCopy);
         unsafe.copyMemory(src, srcAddress + bytesToCopy, dest, destAddress + bytesToCopy, length - bytesToCopy);
     }
@@ -480,8 +480,9 @@ public class InternalUnsafe {
         return unsafe.getIntVolatile(object, addr);
     }
 
-    public static int getByte(Object object, long addr) {
-        return unsafe.getByte(object, addr);
+    public static byte getByte(Object object, long offset) {
+        checkBound(object, offset, Byte.BYTES);
+        return unsafe.getByte(object, offset);
     }
 
     public static byte getByte(long addr) {

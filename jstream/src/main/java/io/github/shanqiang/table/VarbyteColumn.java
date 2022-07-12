@@ -3,10 +3,10 @@ package io.github.shanqiang.table;
 import io.github.shanqiang.ArrayUtil;
 import io.github.shanqiang.exception.UnknownTypeException;
 import io.github.shanqiang.offheap.ByteArray;
-import io.github.shanqiang.offheap.ByteBufferOffheap;
-import io.github.shanqiang.offheap.DynamicVarbyteBufferOffheap;
-import io.github.shanqiang.offheap.LongBufferOffheap;
-import io.github.shanqiang.offheap.VarbyteBufferOffheap;
+import io.github.shanqiang.offheap.buffer.ByteBufferOffheap;
+import io.github.shanqiang.offheap.buffer.DynamicVarbyteBufferOffheap;
+import io.github.shanqiang.offheap.buffer.LongBufferOffheap;
+import io.github.shanqiang.offheap.buffer.VarbyteBufferOffheap;
 import io.github.shanqiang.offheap.*;
 
 import java.math.BigDecimal;

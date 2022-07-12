@@ -2,6 +2,7 @@ package io.github.shanqiang;
 
 import io.github.shanqiang.sp.Node;
 
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -9,7 +10,9 @@ import static java.lang.Boolean.parseBoolean;
 import static java.lang.Integer.parseInt;
 
 public class SystemProperty {
-    public static final boolean DEBUG = parseBoolean(System.getProperty("debug"));
+    public static final boolean DEBUG = parseBoolean(System.getProperty("debug"))
+//            || ManagementFactory.getRuntimeMXBean().getInputArguments().contains("-ea")
+            ;
     private static Node self = null;
     private static List<Node> all = new ArrayList<>();
     private static int myHash = 0;

@@ -1,8 +1,8 @@
 package io.github.shanqiang.table;
 
 import io.github.shanqiang.ArrayUtil;
-import io.github.shanqiang.offheap.ByteBufferOffheap;
-import io.github.shanqiang.offheap.IntBufferOffheap;
+import io.github.shanqiang.offheap.buffer.ByteBufferOffheap;
+import io.github.shanqiang.offheap.buffer.IntBufferOffheap;
 import io.github.shanqiang.offheap.InternalUnsafe;
 
 import static io.github.shanqiang.offheap.InternalUnsafe.copyMemory;

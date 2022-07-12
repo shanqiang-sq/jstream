@@ -1,4 +1,6 @@
-package io.github.shanqiang.offheap;
+package io.github.shanqiang.offheap.buffer;
+
+import io.github.shanqiang.offheap.ByteArray;
 
 import static io.github.shanqiang.ArrayUtil.DEFAULT_CAPACITY;
 import static io.github.shanqiang.ArrayUtil.calculateNewSize;

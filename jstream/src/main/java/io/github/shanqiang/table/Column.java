@@ -3,7 +3,7 @@ package io.github.shanqiang.table;
 import io.github.shanqiang.exception.InconsistentColumnTypeException;
 import io.github.shanqiang.exception.UnknownTypeException;
 import io.github.shanqiang.offheap.InternalUnsafe;
-import io.github.shanqiang.offheap.VarbyteBufferOffheap;
+import io.github.shanqiang.offheap.buffer.VarbyteBufferOffheap;
 import io.github.shanqiang.ArrayUtil;
 import io.github.shanqiang.util.ScalarUtil;
 

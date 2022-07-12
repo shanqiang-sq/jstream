@@ -6,3 +6,4 @@ jstream-shaded-jar/pom.xml.releaseBackup
 jstream/pom.xml.releaseBackup
 pom.xml.releaseBackup
 release.properties
+*.log
