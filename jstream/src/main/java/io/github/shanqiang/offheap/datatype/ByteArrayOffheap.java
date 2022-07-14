@@ -1,17 +1,11 @@
 package io.github.shanqiang.offheap.datatype;
 
-import io.github.shanqiang.offheap.ByteArray;
 import io.github.shanqiang.offheap.InternalUnsafe;
-import io.github.shanqiang.offheap.interfazz.HashCoder;
+import io.github.shanqiang.offheap.interfazz.ComparableOffheap;
 import io.github.shanqiang.offheap.interfazz.Offheap;
 
-import java.util.Objects;
-
 import static io.github.shanqiang.offheap.InternalUnsafe.copyMemory;
-import static io.github.shanqiang.offheap.InternalUnsafe.getByte;
 import static io.github.shanqiang.offheap.InternalUnsafe.getInt;
-import static io.github.shanqiang.offheap.InternalUnsafe.getLong;
-import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 import static sun.misc.Unsafe.ARRAY_BYTE_BASE_OFFSET;
 
@@ -55,46 +49,12 @@ public class ByteArrayOffheap implements Offheap<ByteArrayOffheap>
         if (0L == addr) {
             throw new NullPointerException();
         }
-        return compareTo(value, ARRAY_BYTE_BASE_OFFSET, value.length, null, addr + Integer.BYTES, getInt(addr));
+        return ComparableOffheap.compareTo(value, ARRAY_BYTE_BASE_OFFSET, value.length, null, addr + Integer.BYTES, getInt(addr));
     }
 
     @Override
     public int compareTo(ByteArrayOffheap o) {
-        return compareTo(value, ARRAY_BYTE_BASE_OFFSET, value.length, o.value, ARRAY_BYTE_BASE_OFFSET, o.value.length);
-    }
-
-    private int compareTo(Object thisObj, long thisAddr, int thisSize, Object thatObj, long thatAddr, int thatSize)
-    {
-        int compareLength;
-        for (compareLength = min(thisSize, thatSize); compareLength >= 8; compareLength -= 8) {
-            long thisLong = getLong(thisObj, thisAddr);
-            long thatLong = getLong(thatObj, thatAddr);
-            if (thisLong != thatLong) {
-                return longBytesToLong(thisLong) < longBytesToLong(thatLong) ? -1 : 1;
-            }
-
-            thisAddr += 8L;
-            thatAddr += 8L;
-        }
-
-        while (compareLength > 0) {
-            byte thisByte = getByte(thisObj, thisAddr);
-            byte thatByte = getByte(thatObj, thatAddr);
-            int v = (thisByte & 255) - (thatByte & 255);
-            if (v != 0) {
-                return v;
-            }
-
-            thisAddr++;
-            thatAddr++;
-            compareLength--;
-        }
-
-        return Integer.compare(thisSize, thatSize);
-    }
-
-    private static long longBytesToLong(long bytes) {
-        return Long.reverseBytes(bytes) ^ 0x8000000000000000L;
+        return ComparableOffheap.compareTo(value, ARRAY_BYTE_BASE_OFFSET, value.length, o.value, ARRAY_BYTE_BASE_OFFSET, o.value.length);
     }
 
     @Override
@@ -118,20 +78,11 @@ public class ByteArrayOffheap implements Offheap<ByteArrayOffheap>
 
     @Override
     public int hashCode() {
-        int h = hash;
-        int length = value.length;
-        if (h == 0 && length > 0) {
-            int mod = length % Long.BYTES;
-            for (int i = 0; i < length - mod; i += Long.BYTES) {
-                long l = getLong(value, ARRAY_BYTE_BASE_OFFSET + i);
-                h = 31 * h + (int) (l ^ l >>> 32);
+        if (hash == 0 && value.length > 0) {
+            for (int i = 0; i < value.length; i++) {
+                hash = 31 * hash + value[i];
             }
-
-            for (int i = length - mod; i < length; i++) {
-                h = 31 * h + value[i];
-            }
-            hash = h;
         }
-        return h;
+        return hash;
     }
 }

@@ -68,7 +68,7 @@ public class HashMapOffheap<K extends Offheap<K>, V extends Serializer<V>>
         }
 
         static void setNext(long addr, long next) {
-             putLong(addr + nextOffset, next);
+            putLong(addr + nextOffset, next);
         }
 
         static int getHash(long addr) {
@@ -350,7 +350,7 @@ public class HashMapOffheap<K extends Offheap<K>, V extends Serializer<V>>
         handle.threshold(newThr);
         handle.capacity(newCap);
         long oldTable = handle.table();
-        long size = Long.BYTES * newCap;
+        long size = Long.BYTES * (long) newCap;
         handle.table(InternalUnsafe.alloc(size));
         setMemory(handle.table(), size, (byte) 0);
         for (int i = 0; i < oldCap; i++) {
@@ -403,7 +403,7 @@ public class HashMapOffheap<K extends Offheap<K>, V extends Serializer<V>>
         return (short) (prototypeList.size() - 1);
     }
 
-    public boolean put(K key, V value)
+    public V put(K key, V value)
     {
         checkReleased();
         if (null == key) {
@@ -413,26 +413,36 @@ public class HashMapOffheap<K extends Offheap<K>, V extends Serializer<V>>
             throw new NullPointerException();
         }
 
+        long valueAddr = value.allocAndSerialize(0);
+        short valueClassId = genClassId(value);
+
         int h = hash(key);
         int position = position(h);
         long head = getHead(position);
-        if (contains(head, key)) {
-            return false;
+        long p = head;
+        while (0L != p) {
+            if (0 == key.compareTo(p + PreKey.INSTANCE_SIZE)) {
+                V ret = prototypeValue(p).deserialize(PreKey.getValue(p));
+                prototypeValue(p).free(PreKey.getValue(p), 0);
+                PreKey.setValueClassId(p, valueClassId);
+                PreKey.setValue(p, valueAddr);
+                return ret;
+            }
+            p = PreKey.getNext(p);
         }
 
         long addr = key.allocAndSerialize(PreKey.INSTANCE_SIZE);
         PreKey.setNext(addr, head);
         PreKey.setHash(addr, h);
         PreKey.setKeyClassId(addr, genClassId(key));
-        PreKey.setValueClassId(addr, genClassId(value));
-        long valueAddr = value.allocAndSerialize(0);
+        PreKey.setValueClassId(addr, valueClassId);
         PreKey.setValue(addr, valueAddr);
         setHead(position, addr);
 
         handle.size(handle.size() + 1);
         resize();
 
-        return true;
+        return null;
     }
 
     private boolean contains(long head, K key)
@@ -463,6 +473,10 @@ public class HashMapOffheap<K extends Offheap<K>, V extends Serializer<V>>
             head = PreKey.getNext(head);
         }
         return null;
+    }
+
+    public int size() {
+        return handle.size();
     }
 
     public V get(K key)

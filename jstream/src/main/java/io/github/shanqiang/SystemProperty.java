@@ -1,13 +1,17 @@
 package io.github.shanqiang;
 
+import io.github.shanqiang.network.server.Server;
 import io.github.shanqiang.sp.Node;
 
+import javax.net.ssl.SSLException;
 import java.lang.management.ManagementFactory;
+import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.List;
 
 import static java.lang.Boolean.parseBoolean;
 import static java.lang.Integer.parseInt;
+import static java.util.concurrent.Executors.newSingleThreadExecutor;
 
 public class SystemProperty {
     public static final boolean DEBUG = parseBoolean(System.getProperty("debug"))
@@ -19,6 +23,33 @@ public class SystemProperty {
 
     static {
         init();
+        startServer();
+    }
+
+    private static void startServer() {
+        Node self = SystemProperty.getSelf();
+        if (null == self) {
+            return;
+        }
+        Server server = new Server(false
+                , self.getHost()
+                , self.getPort()
+                , Runtime.getRuntime().availableProcessors()
+                , Runtime.getRuntime().availableProcessors());
+        newSingleThreadExecutor(Threads.threadsNamed("server")).execute(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    server.start();
+                } catch (CertificateException e) {
+                    throw new RuntimeException(e);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                } catch (SSLException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
     }
 
     public static void init() {

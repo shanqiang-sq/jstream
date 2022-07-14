@@ -22,6 +22,12 @@
     <conversionRule conversionWord="highlightex"
                     converterClass="io.github.shanqiang.log.HighlightingCompositeConverter"/>
 
+    <turboFilter class="ch.qos.logback.classic.turbo.MarkerFilter">
+        <Marker>ProducerConfig</Marker>
+        <OnMismatch>NEUTRAL</OnMismatch>
+        <OnMatch>DENY</OnMatch>
+    </turboFilter>
+
     <!-- ConsoleAppender 控制台输出日志 -->
     <appender name="STDOUT" class="ch.qos.logback.core.ConsoleAppender">
         <!-- 对日志进行格式化 -->

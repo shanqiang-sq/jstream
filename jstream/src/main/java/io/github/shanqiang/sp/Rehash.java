@@ -41,13 +41,13 @@ public class Rehash {
     private final int myHash;
     private final int serverCount;
     private final String[] hashByColumnNames;
-    private final Server server;
     private final Client[][] clients;
     private final Table[][][] tablesInServer;
     private final int batchSize;
     private final long flushInterval;
     private final long[] lastFlushTime;
-    private final Duration requestTimeout = Duration.ofSeconds(30);
+    // 永不超时,通过 addQueueSizeLog 监控
+    private final Duration requestTimeout = Duration.ofDays(50 * 365);
     private final ReentrantLock reentrantLock = new ReentrantLock();
     private final Condition condition = reentrantLock.newCondition();
     private final boolean[] finished;
@@ -98,9 +98,6 @@ public class Rehash {
         this.myHash = SystemProperty.getMyHash();
         this.serverCount = SystemProperty.getServerCount();
         if (null != SystemProperty.getSelf()) {
-            Node self = SystemProperty.getSelf();
-            server = new Server(false, self.getHost(), self.getPort(), 1, 2);
-            startServer();
             clients = new Client[serverCount][thread];
             for (int i = 0; i < serverCount; i++) {
                 if (i == myHash) {
@@ -112,7 +109,6 @@ public class Rehash {
                 }
             }
         } else {
-            server = null;
             clients = new Client[0][0];
         }
         finished = new boolean[serverCount];
@@ -129,9 +125,6 @@ public class Rehash {
     }
 
     public void close() {
-        if (null != server) {
-            server.close();
-        }
         for (int i = 0; i < serverCount; i++) {
             if (i == myHash) {
                 continue;
@@ -201,43 +194,27 @@ public class Rehash {
         }
     }
 
-    private void startServer() {
-        newSingleThreadExecutor(Threads.threadsNamed("server")).execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    server.start();
-                } catch (CertificateException e) {
-                    throw new RuntimeException(e);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                } catch (SSLException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-    }
-
     private Client newClient(String host, int port) {
-        for (int i = 0; i < 600; i++) {
+        while (true) {
             try {
                 return new Client(false, host, port, requestTimeout);
             } catch (Throwable t) {
                 try {
                     Thread.sleep(1000);
+                    logger.info("retry to connect to " + host + ":" + port);
                 } catch (InterruptedException e) {
-                    logger.info("interrupted");
+                    throw new IllegalStateException("interrupted");
                 }
             }
         }
-        throw new RuntimeException(format("cannot create client to host: %s, port: %d", host, port));
+//        throw new RuntimeException(format("cannot create client to host: %s, port: %d", host, port));
     }
 
-    public static int fromOtherServer(String uniqueName, int thread, ByteBuffer data) {
+    public static int fromOtherServer(String uniqueName, int thread, ByteBuffer data) throws InterruptedException {
         Rehash rehash = rehashes.get(uniqueName);
         Table table = Table.deserialize(data);
         for (int i = 0; i < table.size(); i++) {
-            rehash.blockingQueueInThread.get(thread).add(new TableRow(table, i));
+            rehash.blockingQueueInThread.get(thread).put(new TableRow(table, i));
         }
         return table.size();
     }
@@ -254,7 +231,7 @@ public class Rehash {
 
     private int requestWithRetry(int server, int myThreadIndex, Table table, int toThread) {
         int i = 0;
-        int retryTimes = 3;
+        int retryTimes = 1;
         while (true) {
             try {
                 return clients[server][myThreadIndex].request("rehash",
@@ -263,9 +240,9 @@ public class Rehash {
                         table);
             } catch (Throwable t) {
                 i++;
-                logger.error("request error {} times", i, t);
+                logger.error(format("request error %d times", i), t);
                 if (i >= retryTimes) {
-                    return -1;
+                    return -2;
                 }
                 try {
                     Thread.sleep(5000);
@@ -284,7 +261,8 @@ public class Rehash {
         if (null != table && table.size() > 0) {
             int ret = requestWithRetry(server, myThreadIndex, table, toThread);
             if (ret != table.size()) {
-                throw new IllegalStateException(format("the peer received size: %d not equal to table.size: %d", ret, table.size()));
+                String msg = format("the peer received size: %d not equal to table.size: %d", ret, table.size());
+                throw new IllegalStateException(msg);
             }
             tablesInServer[myThreadIndex][server][toThread] = null;
         }

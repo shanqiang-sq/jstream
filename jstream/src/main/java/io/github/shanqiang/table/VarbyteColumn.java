@@ -87,7 +87,12 @@ public class VarbyteColumn implements ColumnInterface {
         offset += len;
 
         len = offsets.get(size);
-        values = new DynamicVarbyteBufferOffheap(len);
+        // 都是空串的情况下 len 会是 0
+        if (0 == len) {
+            values = new DynamicVarbyteBufferOffheap(1);
+        } else {
+            values = new DynamicVarbyteBufferOffheap(len);
+        }
         InternalUnsafe.copyMemory(bytes, offset, null, values.getAddr(), len);
         offset += len;
 

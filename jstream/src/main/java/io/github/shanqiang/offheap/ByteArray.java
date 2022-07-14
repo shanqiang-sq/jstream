@@ -70,20 +70,12 @@ public class ByteArray implements Comparable<ByteArray> {
 
     @Override
     public int hashCode() {
-        int h = hash;
-        if (h == 0 && length > 0) {
-            int mod = length % Long.BYTES;
-            for (int i = 0; i < length - mod; i += Long.BYTES) {
-                long l = getLong(bytes, ARRAY_BYTE_BASE_OFFSET + i);
-                h = 31 * h + (int) (l ^ l >>> 32);
+        if (hash == 0 && bytes.length > 0) {
+            for (int i = 0; i < bytes.length; i++) {
+                hash = 31 * hash + bytes[i];
             }
-
-            for (int i = length - mod; i < length; i++) {
-                h = 31 * h + bytes[offset + i];
-            }
-            hash = h;
         }
-        return h;
+        return hash;
     }
 
     @Override

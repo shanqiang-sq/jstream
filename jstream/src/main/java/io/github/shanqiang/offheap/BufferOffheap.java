@@ -19,7 +19,7 @@ public class BufferOffheap
     public BufferOffheap(long size)
     {
         if (size <= 0) {
-            throw new IllegalArgumentException();
+            throw new IllegalArgumentException("size: " + size);
         }
 
         this.size = size;

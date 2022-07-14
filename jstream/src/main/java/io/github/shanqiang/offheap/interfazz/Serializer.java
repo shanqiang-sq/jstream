@@ -56,6 +56,9 @@ public interface Serializer<E> {
             else if (type == boolean.class) {
                 offset += Byte.BYTES;
             }
+            else if (type == byte.class) {
+                offset += Byte.BYTES;
+            }
             else {
                 throw new IllegalArgumentException("unsupported type");
             }

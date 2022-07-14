@@ -41,6 +41,8 @@ public class InternalUnsafe {
     private static volatile AtomicLong reservedMemory;
     private static final TreeMap<Long, Long> addr2length = new TreeMap<>();
     private static volatile long lastOutOfMemoryMillis = 0L;
+    private static final GlobalMemory globalMemory = new SystemInfo().getHardware().getMemory();
+    private static final long totalPhysicalMemory = globalMemory.getTotal();
 
     static {
         try {
@@ -64,8 +66,6 @@ public class InternalUnsafe {
                 @Override
                 public void run() {
                     try {
-                        GlobalMemory globalMemory = new SystemInfo().getHardware().getMemory();
-                        long totalPhysicalMemory = globalMemory.getTotal();
                         long availPhysicalMemory = globalMemory.getAvailable();
                         //可用内存不足20%更新最大内存为当前已使用内存量强制释放10%内存出来（参见NsdbPagesStore.expirePages）
                         //一段时间后maxDirectMemory将定格在物理内存的80%
