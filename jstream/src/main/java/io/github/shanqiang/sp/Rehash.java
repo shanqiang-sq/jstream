@@ -41,22 +41,16 @@ public class Rehash {
     private final int myHash;
     private final int serverCount;
     private final String[] hashByColumnNames;
-    private final Client[][] clients;
-    private final Table[][][] tablesInServer;
-    private final int batchSize;
-    private final long flushInterval;
-    private final long[] lastFlushTime;
-    // 永不超时,通过 addQueueSizeLog 监控
-    private final Duration requestTimeout = Duration.ofDays(50 * 365);
+    private final RehashOutputTable[] rehashOutputTables;
     private final ReentrantLock reentrantLock = new ReentrantLock();
     private final Condition condition = reentrantLock.newCondition();
     private final boolean[] finished;
 
-    private static class TableRow {
-        private final Table table;
-        private final int row;
+    static class TableRow {
+        final Table table;
+        final int row;
 
-        private TableRow(Table table, int row) {
+        TableRow(Table table, int row) {
             this.table = table;
             this.row = row;
         }
@@ -65,7 +59,7 @@ public class Rehash {
     private final List<BlockingQueue<TableRow>> blockingQueueInThread;
 
     Rehash(int thread, String uniqueName, String... hashByColumnNames) {
-        this(thread, 40_0000, 1000, uniqueName, hashByColumnNames);
+        this(thread, Runtime.getRuntime().availableProcessors(), 80_0000, uniqueName, hashByColumnNames);
     }
 
     /**
@@ -76,16 +70,12 @@ public class Rehash {
      *                   automatically generate this name may lead to subtle race condition problem in concurrent case,
      *                   "name order" on different server may be different so let user define this name may be more sensible.
      */
-    Rehash(int thread, int batchSize, long flushInterval, String uniqueName, String... hashByColumnNames) {
-        this.batchSize = batchSize;
-        this.flushInterval = flushInterval;
-
+    Rehash(int thread, int toPerOtherServerThread, int queueSize, String uniqueName, String... hashByColumnNames) {
         this.thread = thread;
-        this.lastFlushTime = new long[thread];
 
         blockingQueueInThread = new ArrayList<>(thread);
         for (int i = 0; i < thread; i++) {
-            blockingQueueInThread.add(new ArrayBlockingQueue(2 * batchSize));
+            blockingQueueInThread.add(new ArrayBlockingQueue(queueSize));
         }
         addQueueSizeLog(uniqueName, blockingQueueInThread);
 
@@ -97,28 +87,13 @@ public class Rehash {
 
         this.myHash = SystemProperty.getMyHash();
         this.serverCount = SystemProperty.getServerCount();
-        if (null != SystemProperty.getSelf()) {
-            clients = new Client[serverCount][thread];
-            for (int i = 0; i < serverCount; i++) {
-                if (i == myHash) {
-                    continue;
-                }
-                Node node = SystemProperty.getNodeByHash(i);
-                for (int j = 0; j < thread; j++) {
-                    clients[i][j] = newClient(node.getHost(), node.getPort());
-                }
-            }
-        } else {
-            clients = new Client[0][0];
-        }
         finished = new boolean[serverCount];
-        tablesInServer = new Table[thread][serverCount][thread];
-
-        for (int i = 0; i < thread; i++) {
-            tablesInServer[i] = new Table[serverCount][thread];
-            for (int j = 0; j < serverCount; j++) {
-                tablesInServer[i][j] = new Table[thread];
+        rehashOutputTables = new RehashOutputTable[serverCount];
+        for (int i = 0; i < serverCount; i++) {
+            if (i == myHash) {
+                continue;
             }
+            rehashOutputTables[i] = new RehashOutputTable(uniqueName, toPerOtherServerThread, i, thread, queueSize);
         }
 
         rehashes.put(uniqueName, this);
@@ -129,9 +104,7 @@ public class Rehash {
             if (i == myHash) {
                 continue;
             }
-            for (int j = 0; j < thread; j++) {
-                clients[i][j].close();
-            }
+            rehashOutputTables[i].stop();
         }
         rehashes.remove(uniqueName);
     }
@@ -146,7 +119,7 @@ public class Rehash {
                 continue;
             }
             try {
-                clients[i][0].request(Command.REHASH_FINISHED, uniqueName, myHash);
+                rehashOutputTables[i].request(Command.REHASH_FINISHED, uniqueName, myHash);
             } catch (InterruptedException e) {
                 throw new RuntimeException(e);
             }
@@ -165,6 +138,7 @@ public class Rehash {
                     break;
                 }
                 try {
+                    Duration requestTimeout = Duration.ofSeconds(30);
                     long nanos = condition.awaitNanos(requestTimeout.toNanos());
                     if (nanos <= 0) {
                         throw new RuntimeException("wait timeout");
@@ -194,22 +168,6 @@ public class Rehash {
         }
     }
 
-    private Client newClient(String host, int port) {
-        while (true) {
-            try {
-                return new Client(false, host, port, requestTimeout);
-            } catch (Throwable t) {
-                try {
-                    Thread.sleep(1000);
-                    logger.info("retry to connect to " + host + ":" + port);
-                } catch (InterruptedException e) {
-                    throw new IllegalStateException("interrupted");
-                }
-            }
-        }
-//        throw new RuntimeException(format("cannot create client to host: %s, port: %d", host, port));
-    }
-
     public static int fromOtherServer(String uniqueName, int thread, ByteBuffer data) throws InterruptedException {
         Rehash rehash = rehashes.get(uniqueName);
         Table table = Table.deserialize(data);
@@ -219,74 +177,10 @@ public class Rehash {
         return table.size();
     }
 
-    private void toAnotherServer(Table table, int row, int hash, int myThreadIndex) {
+    private void toAnotherServer(Table table, int row, int hash) throws InterruptedException {
         int i = hash % serverCount;
         int j = hash % thread;
-        if (null == tablesInServer[myThreadIndex][i][j]) {
-            tablesInServer[myThreadIndex][i][j] = createEmptyTableLike(table);
-        }
-        tablesInServer[myThreadIndex][i][j].append(table, row);
-        flushBySize(i, j, myThreadIndex);
-    }
-
-    private int requestWithRetry(int server, int myThreadIndex, Table table, int toThread) {
-        int i = 0;
-        int retryTimes = 1;
-        while (true) {
-            try {
-                return clients[server][myThreadIndex].request("rehash",
-                        uniqueName,
-                        toThread,
-                        table);
-            } catch (Throwable t) {
-                i++;
-                logger.error(format("request error %d times", i), t);
-                if (i >= retryTimes) {
-                    return -2;
-                }
-                try {
-                    Thread.sleep(5000);
-                    Node node = SystemProperty.getNodeByHash(server);
-                    clients[server][myThreadIndex].close();
-                    clients[server][myThreadIndex] = newClient(node.getHost(), node.getPort());
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        }
-    }
-
-    private void request(int server, int toThread, int myThreadIndex) {
-        Table table = tablesInServer[myThreadIndex][server][toThread];
-        if (null != table && table.size() > 0) {
-            int ret = requestWithRetry(server, myThreadIndex, table, toThread);
-            if (ret != table.size()) {
-                String msg = format("the peer received size: %d not equal to table.size: %d", ret, table.size());
-                throw new IllegalStateException(msg);
-            }
-            tablesInServer[myThreadIndex][server][toThread] = null;
-        }
-    }
-
-    private void flushByInterval(int myThreadIndex) {
-        long now = System.currentTimeMillis();
-        if (now - lastFlushTime[myThreadIndex] >= flushInterval) {
-            for (int i = 0; i < serverCount; i++) {
-                if (i == myHash) {
-                    continue;
-                }
-                for (int j = 0; j < thread; j++) {
-                    request(i, j, myThreadIndex);
-                }
-            }
-            lastFlushTime[myThreadIndex] = now;
-        }
-    }
-
-    private void flushBySize(int serverHash, int toThread, int myThreadIndex) {
-        if (tablesInServer[myThreadIndex][serverHash][toThread].size() >= batchSize) {
-            request(serverHash, toThread, myThreadIndex);
-        }
+        rehashOutputTables[i].produce(table, row, j);
     }
 
     public List<Table> rebalance(Table table, int myThreadIndex) throws InterruptedException {
@@ -298,9 +192,6 @@ public class Rehash {
     }
 
     private List<Table> rehash(Table table, int myThreadIndex, boolean isHash) throws InterruptedException {
-        //长时间没有数据的情况下也可以被触发，参见AbstractStreamTable.consume
-        flushByInterval(myThreadIndex);
-
         Table tmp = createEmptyTableLike(table);
         Random random = null;
         if (!isHash) {
@@ -318,7 +209,7 @@ public class Rehash {
                 h = random.nextInt(serverCount * thread);
             }
             if (h % serverCount != myHash) {
-                toAnotherServer(table, i, h, myThreadIndex);
+                toAnotherServer(table, i, h);
                 continue;
             }
             h %= thread;

@@ -102,6 +102,7 @@ public class KafkaOutputTable extends AbstractOutputTable {
         }
     }
 
+    @Override
     public void start() {
         detectPartitions();
         partitionsDetector.scheduleWithFixedDelay(new Runnable() {
