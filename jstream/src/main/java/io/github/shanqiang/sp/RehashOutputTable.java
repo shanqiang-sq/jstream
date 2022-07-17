@@ -29,6 +29,7 @@ public class RehashOutputTable {
     private final int toServer;
     private final String uniqueName;
     private final Client[] clients;
+    private final int batchSize = 80000;
     private final List<BlockingQueue<Rehash.TableRow>> blockingQueue;
     private final ThreadPoolExecutor threadPoolExecutor;
 
@@ -40,13 +41,13 @@ public class RehashOutputTable {
         for (int i = 0; i < rehashThreadNum; i++) {
             this.blockingQueue.add(new ArrayBlockingQueue<>(queueSize));
         }
-        addQueueSizeLog(uniqueName + "-to-" + toServer, blockingQueue);
+        addQueueSizeLog(uniqueName + "-out-to-server-" + toServer, blockingQueue);
         threadPoolExecutor = new ThreadPoolExecutor(thread,
                 thread,
                 0,
                 TimeUnit.SECONDS,
                 new ArrayBlockingQueue<>(1),
-                new ThreadFactoryBuilder().setNameFormat(uniqueName + "rehash-output-%d").build());
+                new ThreadFactoryBuilder().setNameFormat(uniqueName + "-rehash-output-%d").build());
         if (null != SystemProperty.getSelf()) {
             clients = new Client[thread];
             Node node = SystemProperty.getNodeByHash(toServer);
@@ -63,6 +64,7 @@ public class RehashOutputTable {
     }
 
     public void produce(Table table, int row, int toThread) throws InterruptedException {
+//        return blockingQueue.get(toThread).offer(new Rehash.TableRow(table, row), 100, TimeUnit.MILLISECONDS);
         blockingQueue.get(toThread).put(new Rehash.TableRow(table, row));
     }
 
@@ -82,6 +84,10 @@ public class RehashOutputTable {
                                     Table tmp = Table.createEmptyTableLike(tableRow.table);
                                     while (null != tableRow) {
                                         tmp.append(tableRow.table, tableRow.row);
+                                        if (tmp.size() % batchSize == 0) {
+                                            request(finalI, tmp, j);
+                                            tmp = Table.createEmptyTableLike(tableRow.table);
+                                        }
                                         tableRow = blockingQueue.get(j).poll();
                                     }
                                     request(finalI, tmp, j);

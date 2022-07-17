@@ -1,5 +1,6 @@
 package io.github.shanqiang.sp;
 
+import io.github.shanqiang.JStream;
 import io.github.shanqiang.sp.input.StreamTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,14 +48,26 @@ public class StreamProcessing {
         this.streamTables = requireNonNull(streamTables);
         this.finishDelay = finishDelay.toMillis();
         allSP.add(this);
+
+        JStream.startServer();
     }
 
-    public Rehash rehash(String uniqueName, String... hashByColumnNames) {
-        return new Rehash(thread, uniqueName, hashByColumnNames);
+    public Rehash rehash(StreamProcessing target, String uniqueName, String... hashByColumnNames) {
+        return new Rehash(target.thread, uniqueName, hashByColumnNames);
     }
 
-    public Rehash rehash(int batchSize, long flushInterval, String uniqueName, String... hashByColumnNames) {
-        return new Rehash(thread, batchSize, flushInterval, uniqueName, hashByColumnNames);
+    public Rehash rehash(StreamProcessing target
+            , int toPerOtherServerThread
+            , int queueSize
+            , boolean rehashBetweenServers
+            , String uniqueName
+            , String... hashByColumnNames) {
+        return new Rehash(target.thread
+                , toPerOtherServerThread
+                , queueSize
+                , rehashBetweenServers
+                , uniqueName
+                , hashByColumnNames);
     }
 
     private boolean isFinished() {

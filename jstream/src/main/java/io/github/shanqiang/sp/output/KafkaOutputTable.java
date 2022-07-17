@@ -14,6 +14,7 @@ import org.apache.kafka.common.PartitionInfo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
@@ -24,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.util.IpUtil.getIp;
 import static io.github.shanqiang.util.ScalarUtil.toStr;
+import static java.lang.Math.abs;
 import static java.lang.Runtime.getRuntime;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
@@ -45,7 +47,9 @@ import static org.apache.kafka.clients.producer.ProducerConfig.VALUE_SERIALIZER_
 public class KafkaOutputTable extends AbstractOutputTable {
     private static final Logger logger = LoggerFactory.getLogger(KafkaOutputTable.class);
 
+    private final String bootstrapServers;
     private final String topic;
+    private final String[] hashByColumns;
     private final Properties properties;
     private final int batchSize;
     private volatile int[] allPartitions;
@@ -67,9 +71,12 @@ public class KafkaOutputTable extends AbstractOutputTable {
     public KafkaOutputTable(int thread,
                             int batchSize,
                             String bootstrapServers,
-                            String topic) {
+                            String topic,
+                            String... hashByColumns) {
         super(thread, "|KafkaOutputTable|" + topic);
+        this.bootstrapServers = requireNonNull(bootstrapServers);
         this.topic = requireNonNull(topic);
+        this.hashByColumns = hashByColumns;
         Properties properties = new Properties();
         properties.put(BOOTSTRAP_SERVERS_CONFIG, requireNonNull(bootstrapServers));
         properties.put(KEY_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.LongSerializer");
@@ -119,7 +126,7 @@ public class KafkaOutputTable extends AbstractOutputTable {
                 @Override
                 public void run() {
                     Properties tmp = (Properties) properties.clone();
-                    tmp.put(CLIENT_ID_CONFIG, getIp() + "-" + finalI);
+                    tmp.put(CLIENT_ID_CONFIG, getIp() + "-" + finalI + "-" + bootstrapServers + "-" + topic);
                     try (Producer<Long, String> producer = new KafkaProducer(tmp)) {
                         while (!Thread.interrupted()) {
                             try {
@@ -148,8 +155,19 @@ public class KafkaOutputTable extends AbstractOutputTable {
                                             }
                                         }
                                     }
+                                    Integer partition = 0;
+                                    if (hashByColumns.length > 0) {
+                                        List<Comparable> key = new ArrayList<>(hashByColumns.length);
+                                        for (int j = 0; j < hashByColumns.length; j++) {
+                                            key.add(table.getColumn(hashByColumns[j]).get(i));
+                                        }
+                                        int h = abs(key.hashCode());
+                                        partition = allPartitions[h % allPartitions.length];
+                                    } else {
+                                        partition = allPartitions[random.nextInt(allPartitions.length)];
+                                    }
                                     ProducerRecord<Long, String> producerRecord = new ProducerRecord<>(topic,
-                                            allPartitions[random.nextInt(allPartitions.length)],
+                                            partition,
                                             now,
                                             jsonObject.toString());
                                     producer.send(producerRecord);

@@ -65,6 +65,7 @@ public class Server {
                         }
                     });
 
+            logger.info("listening to " + host + ":" + port);
             b.bind(host, port).sync().channel().closeFuture().sync();
         } finally {
             close();
