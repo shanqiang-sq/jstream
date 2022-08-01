@@ -101,7 +101,7 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
                     StreamProcessing.handleException(t);
                 }
             }
-        });
+        }, topicPartition.topic() + "-" + topicPartition.partition());
         thread.start();
         consumers.add(thread);
     }

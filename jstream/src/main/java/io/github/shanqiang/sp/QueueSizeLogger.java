@@ -40,7 +40,11 @@ public class QueueSizeLogger {
                     CollectionType collectionType = stats.get(name);
                     switch (collectionType.type) {
                         case QUEUE_SIZE:
-                            logger.info("{}: {}", name, computeQueueSize(name, collectionType.collection));
+                            logger.info("{}: {sum: {}, max: {}}"
+                                    , name
+                                    , sumQueueSize(name, collectionType.collection)
+                                    , maxQueueSize(name, collectionType.collection)
+                            );
                             break;
                         case RECORD_SIZE:
                             logger.info("{}: {}", name, computeRecordSize(name, collectionType.collection));
@@ -62,12 +66,23 @@ public class QueueSizeLogger {
         stats.put(name, new CollectionType(collections, Type.RECORD_SIZE));
     }
 
-    private static long computeQueueSize(String name, Collection collections) {
+    private static long sumQueueSize(String name, Collection collections) {
         long sum = 0;
         for (Object collection : collections) {
             sum += ((Collection) collection).size();
         }
         return sum;
+    }
+
+    private static long maxQueueSize(String name, Collection collections) {
+        long max = 0;
+        for (Object collection : collections) {
+            long tmp = ((Collection) collection).size();
+            if (tmp > max) {
+                max = tmp;
+            }
+        }
+        return max;
     }
 
     private static long computeRecordSize(String name, Collection collections) {

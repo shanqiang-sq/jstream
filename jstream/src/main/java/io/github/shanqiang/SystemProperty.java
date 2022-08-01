@@ -23,36 +23,9 @@ public class SystemProperty {
 
     static {
         init();
-        startServer();
     }
 
-    private static void startServer() {
-        Node self = SystemProperty.getSelf();
-        if (null == self) {
-            return;
-        }
-        Server server = new Server(false
-                , self.getHost()
-                , self.getPort()
-                , Runtime.getRuntime().availableProcessors()
-                , Runtime.getRuntime().availableProcessors());
-        newSingleThreadExecutor(Threads.threadsNamed("server")).execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    server.start();
-                } catch (CertificateException e) {
-                    throw new RuntimeException(e);
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                } catch (SSLException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
-    }
-
-    public static void init() {
+    private static void init() {
         String strSelf = System.getProperty("self");
         if (null == strSelf) {
             return;

@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.sp.QueueSizeLogger.addQueueSizeLog;
 import static io.github.shanqiang.sp.QueueSizeLogger.addRecordSizeLog;
@@ -46,9 +47,9 @@ public abstract class AbstractStreamTable implements StreamTable {
     protected final List<ByteArray> columns;
     protected final Duration batch = Duration.ofSeconds(1);
     protected final int thread;
-    protected final int queueDepth = 100;
+    protected final int queueDepth = 1000;
     protected final String sign;
-    protected long sleepMs = 100;
+    protected long sleepMs = 1;
     private final Random random = new Random();
 
     protected final List<ArrayBlockingQueue<Table>> arrayBlockingQueueList;
@@ -101,6 +102,18 @@ public abstract class AbstractStreamTable implements StreamTable {
             }
         }
         return true;
+    }
+
+    final public Table consume(int myThreadIndex) throws InterruptedException {
+        if (arrayBlockingQueueList.size() <= 0) {
+            return emptyTable;
+        }
+        myThreadIndex %= arrayBlockingQueueList.size();
+        Table table = arrayBlockingQueueList.get(myThreadIndex).poll(sleepMs, TimeUnit.MILLISECONDS);
+        if (null != table) {
+            return table;
+        }
+        return emptyTable;
     }
 
     @Override

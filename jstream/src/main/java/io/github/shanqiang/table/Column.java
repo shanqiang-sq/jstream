@@ -80,8 +80,8 @@ public class Column<T extends Comparable> implements Serializable {
         offset += Integer.BYTES;
 
         InternalUnsafe.putInt(bytes, offset, initSize);
+        offset += Integer.BYTES;
         if (null != column) {
-            offset += Integer.BYTES;
             len = column.serializeSize();
             InternalUnsafe.putLong(bytes, offset, len);
             offset += Long.BYTES;

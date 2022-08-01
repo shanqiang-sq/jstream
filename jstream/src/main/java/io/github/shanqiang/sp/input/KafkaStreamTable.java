@@ -23,27 +23,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 import static io.github.shanqiang.sp.input.kafka.MyKafkaConsumer.newKafkaConsumer;
 import static java.util.Arrays.asList;
+import static java.util.Collections.sort;
 import static java.util.Objects.requireNonNull;
+
 import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.AUTO_OFFSET_RESET_CONFIG;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.GROUP_ID_CONFIG;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.MAX_POLL_RECORDS_CONFIG;
-import static org.apache.kafka.clients.consumer.ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG;
+import static org.apache.kafka.clients.consumer.ConsumerConfig.*;
 import static org.apache.kafka.clients.producer.ProducerConfig.BOOTSTRAP_SERVERS_CONFIG;
 
 public class KafkaStreamTable extends AbstractStreamTable {
@@ -117,6 +108,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
         properties.put(MAX_POLL_RECORDS_CONFIG, 40000);
         properties.put(ENABLE_AUTO_COMMIT_CONFIG, "true");
         properties.put(AUTO_OFFSET_RESET_CONFIG, "none");
+        properties.put(DEFAULT_API_TIMEOUT_MS_CONFIG, 60_000);
 
         this.properties = properties;
         this.partitionsDetector = newSingleThreadScheduledExecutor(Threads.threadsNamed("partitions_detector" + sign));
@@ -219,7 +211,7 @@ public class KafkaStreamTable extends AbstractStreamTable {
                     StreamProcessing.handleException(t);
                 }
             }
-        });
+        }, topicPartition.topic() + "-" + topicPartition.partition());
         thread.start();
         consumers.add(thread);
     }
@@ -277,7 +269,9 @@ public class KafkaStreamTable extends AbstractStreamTable {
         partitionsDetector.scheduleWithFixedDelay(new Runnable() {
             @Override
             public void run() {
-                logger.info("{} partitions: {}", sign, myPartitions);
+                List<Integer> sorted = asList(myPartitions.toArray(new Integer[0]));
+                sort(sorted);
+                logger.info("{} partitions: {}", sign, sorted);
                 try (Consumer<String, String> consumer = newKafkaConsumer(properties)) {
                     /**
                      * 该函数返回的是topic的所有partition并不会按相同的consumer group负载均衡

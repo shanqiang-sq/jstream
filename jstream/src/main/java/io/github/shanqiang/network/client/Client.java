@@ -1,20 +1,16 @@
 package io.github.shanqiang.network.client;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
-import io.netty.channel.Channel;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
-import io.netty.channel.ChannelInitializer;
-import io.netty.channel.ChannelOption;
-import io.netty.channel.ChannelPipeline;
-import io.netty.channel.EventLoopGroup;
+import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.handler.ssl.SslContext;
 import io.netty.handler.ssl.SslContextBuilder;
 import io.netty.handler.ssl.util.InsecureTrustManagerFactory;
+import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -32,7 +28,7 @@ public class Client {
     private static final Logger logger = LoggerFactory.getLogger(Client.class);
 
     private final SslContext sslCtx;
-    private Channel channel;
+    private ChannelFuture channelFuture;
     private final ClientHandler clientHandler;
     private final EventLoopGroup group;
     private volatile boolean closed = true;
@@ -51,11 +47,12 @@ public class Client {
         @Override
         public void channelRead(ChannelHandlerContext ctx, Object object) {
             try {
-                reentrantLock.lock();
-                responseByteBuf = (ByteBuf) object;
-                condition.signal();
+//                reentrantLock.lock();
+//                responseByteBuf = (ByteBuf) object;
+//                condition.signal();
             } finally {
-                reentrantLock.unlock();
+//                reentrantLock.unlock();
+                ReferenceCountUtil.release(object);
             }
         }
 
@@ -67,13 +64,15 @@ public class Client {
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             logger.error("", cause);
             try {
-                reentrantLock.lock();
+//                reentrantLock.lock();
                 throwable = cause;
-                condition.signal();
+//                condition.signal();
                 ctx.close();
-                close();
+
+                // 抛出异常由上层close否则会死锁
+                // close();
             } finally {
-                reentrantLock.unlock();
+//                reentrantLock.unlock();
             }
         }
     }
@@ -89,28 +88,62 @@ public class Client {
             sslCtx = null;
         }
 
-        group = new NioEventLoopGroup(1);
-        Bootstrap b = new Bootstrap();
-        b.group(group)
-                .channel(NioSocketChannel.class)
-                .option(ChannelOption.SO_KEEPALIVE, true)
-                .handler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    public void initChannel(SocketChannel ch) {
-                        ChannelPipeline p = ch.pipeline();
-                        if (sslCtx != null) {
-                            p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
+        group = new NioEventLoopGroup(1
+                , new ThreadFactoryBuilder()
+//                .setPriority(8)
+                .setNameFormat("client")
+                .build());
+        try {
+            Bootstrap b = new Bootstrap();
+            b.group(group)
+                    .channel(NioSocketChannel.class)
+                    .option(ChannelOption.SO_KEEPALIVE, true)
+                    .handler(new ChannelInitializer<SocketChannel>() {
+                        @Override
+                        public void initChannel(SocketChannel ch) {
+                            ChannelPipeline p = ch.pipeline();
+                            if (sslCtx != null) {
+                                p.addLast(sslCtx.newHandler(ch.alloc(), host, port));
+                            }
+
+                            p.addLast(
+                                    new RequestEncoder(),
+                                    new ResponseDecoder(),
+                                    clientHandler);
                         }
+                    });
 
-                        p.addLast(
-                                new RequestEncoder(),
-                                new ResponseDecoder(),
-                                clientHandler);
-                    }
-                });
+            channelFuture = b.connect(host, port).sync();
+            closed = false;
+        } catch (Throwable t) {
+            if (null != channelFuture) {
+                channelFuture.channel().close().sync();
+            }
+            if (null != group) {
+                group.shutdownGracefully().sync();
+            }
+            throw new IllegalStateException(t);
+        }
+    }
 
-        channel = b.connect(host, port).sync().channel();
-        closed = false;
+    public int asyncRequest(String cmd, Object... args) throws InterruptedException {
+        try {
+            List<Object> objects = new ArrayList<>(args.length + 1);
+            objects.add(cmd);
+            for (int i = 0; i < args.length; i++) {
+                objects.add(args[i]);
+            }
+//            reentrantLock.lock();
+            if (null != throwable) {
+                Throwable tmp = throwable;
+                throwable = null;
+                throw new RuntimeException(tmp);
+            }
+            channelFuture.channel().writeAndFlush(objects);
+        } finally {
+//            reentrantLock.unlock();
+        }
+        return 0;
     }
 
     public int request(String cmd, Object... args) throws InterruptedException {
@@ -121,15 +154,18 @@ public class Client {
             for (int i = 0; i < args.length; i++) {
                 objects.add(args[i]);
             }
-            channel.writeAndFlush(objects);
+            channelFuture.channel().writeAndFlush(objects);
             long nanos = condition.awaitNanos(requestTimeout.toNanos());
+            if (clientHandler.responseByteBuf != null) {
+                int ret = clientHandler.responseByteBuf.readInt();
+                clientHandler.responseByteBuf.release();
+                clientHandler.responseByteBuf = null;
+                return ret;
+            }
             if (nanos <= 0) {
                 throw new RuntimeException("request timeout");
             }
-
-            int ret = clientHandler.responseByteBuf.readInt();
-            clientHandler.responseByteBuf.release();
-            return ret;
+            throw new IllegalStateException("not timeout but no response");
         } finally {
             reentrantLock.unlock();
             if (null != throwable) {
@@ -142,9 +178,15 @@ public class Client {
 
     public void close() {
         try {
+            if (closed) {
+                return;
+            }
             reentrantLock.lock();
-            group.shutdownGracefully();
+            channelFuture.channel().close().sync();
+            group.shutdownGracefully().sync();
             closed = true;
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         } finally {
             reentrantLock.unlock();
         }

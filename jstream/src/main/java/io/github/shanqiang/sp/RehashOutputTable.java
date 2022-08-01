@@ -24,38 +24,46 @@ public class RehashOutputTable {
     private static final Logger logger = LoggerFactory.getLogger(RehashOutputTable.class);
 
     // 永不超时,通过 addQueueSizeLog 监控
-    private final Duration requestTimeout = Duration.ofDays(50 * 365);
+//    private final Duration requestTimeout = Duration.ofDays(50 * 365);
+    private final Duration requestTimeout = Duration.ofSeconds(10);
     private final int thread;
     private final int toServer;
     private final String uniqueName;
     private final Client[] clients;
+    private final int batchSize = 5_0000;
     private final List<BlockingQueue<Rehash.TableRow>> blockingQueue;
     private final ThreadPoolExecutor threadPoolExecutor;
+    private final Node node;
+    private final String hostPort;
 
-    RehashOutputTable(String uniqueName, int thread, int toServer, int rehashThreadNum, int queueSize) {
-        this.thread = thread;
+    RehashOutputTable(String uniqueName, int xxx, int toServer, int rehashThreadNum, int queueSize) {
+        if (xxx < 1) {
+            throw new IllegalArgumentException();
+        }
+        clients = new Client[rehashThreadNum];
+        node = SystemProperty.getNodeByHash(toServer);
+        for (int j = 0; j < rehashThreadNum; j++) {
+            clients[j] = newClient(node.getHost(), node.getPort());
+        }
+        hostPort = node.getHost() + ":" + node.getPort();
+
+        this.thread = rehashThreadNum;
         this.toServer = toServer;
         this.uniqueName = requireNonNull(uniqueName);
         this.blockingQueue = new ArrayList<>(rehashThreadNum);
         for (int i = 0; i < rehashThreadNum; i++) {
             this.blockingQueue.add(new ArrayBlockingQueue<>(queueSize));
         }
-        addQueueSizeLog(uniqueName + "-to-" + toServer, blockingQueue);
-        threadPoolExecutor = new ThreadPoolExecutor(thread,
-                thread,
+        addQueueSizeLog(uniqueName + "-out-to-server-" + node.getHost() + ":" + node.getPort(), blockingQueue);
+        threadPoolExecutor = new ThreadPoolExecutor(rehashThreadNum,
+                rehashThreadNum,
                 0,
                 TimeUnit.SECONDS,
                 new ArrayBlockingQueue<>(1),
-                new ThreadFactoryBuilder().setNameFormat(uniqueName + "rehash-output-%d").build());
-        if (null != SystemProperty.getSelf()) {
-            clients = new Client[thread];
-            Node node = SystemProperty.getNodeByHash(toServer);
-            for (int j = 0; j < thread; j++) {
-                clients[j] = newClient(node.getHost(), node.getPort());
-            }
-        } else {
-            clients = new Client[0];
-        }
+                new ThreadFactoryBuilder()
+//                        .setPriority(7)
+                        .setNameFormat(uniqueName + "-rehash-output-%d")
+                        .build());
     }
 
     public void request(String command, Object... args) throws InterruptedException {
@@ -63,7 +71,11 @@ public class RehashOutputTable {
     }
 
     public void produce(Table table, int row, int toThread) throws InterruptedException {
-        blockingQueue.get(toThread).put(new Rehash.TableRow(table, row));
+//        return blockingQueue.get(toThread).offer(new Rehash.TableRow(table, row), 100, TimeUnit.MILLISECONDS);
+//        blockingQueue.get(toThread).put(new Rehash.TableRow(table, row));
+        while (!blockingQueue.get(toThread).offer(new Rehash.TableRow(table, row), 5, TimeUnit.SECONDS)) {
+            logger.warn(format("exceed 5 seconds cannot offer to %s out queue", uniqueName));
+        }
     }
 
     public void start() {
@@ -72,24 +84,41 @@ public class RehashOutputTable {
             threadPoolExecutor.submit(new Runnable() {
                 @Override
                 public void run() {
+                    Table tmp = null;
                     while (!Thread.interrupted()) {
                         try {
-                            boolean allIsNull = true;
-                            for (int j = 0; j < blockingQueue.size(); j++) {
-                                Rehash.TableRow tableRow = blockingQueue.get(j).poll();
-                                if (null != tableRow) {
-                                    allIsNull = false;
-                                    Table tmp = Table.createEmptyTableLike(tableRow.table);
-                                    while (null != tableRow) {
-                                        tmp.append(tableRow.table, tableRow.row);
-                                        tableRow = blockingQueue.get(j).poll();
-                                    }
-                                    request(finalI, tmp, j);
-                                }
+                            Rehash.TableRow tableRow = blockingQueue.get(finalI).poll(100, TimeUnit.MILLISECONDS);
+                            if (null == tableRow) {
+                                continue;
                             }
-                            if (allIsNull) {
-                                Thread.sleep(100);
+                            if (null == tmp) {
+                                tmp = Table.createEmptyTableLike(tableRow.table);
                             }
+                            tmp.append(tableRow.table, tableRow.row);
+                            if (tmp.size() >= batchSize) {
+                                request(finalI, tmp, finalI);
+                                tmp = Table.createEmptyTableLike(tableRow.table);
+                            }
+//                            boolean allIsNull = true;
+//                            for (int j = 0; j < blockingQueue.size(); j++) {
+//                                Rehash.TableRow tableRow = blockingQueue.get(j).poll();
+//                                if (null != tableRow) {
+//                                    allIsNull = false;
+//                                    Table tmp = Table.createEmptyTableLike(tableRow.table);
+//                                    while (null != tableRow) {
+//                                        tmp.append(tableRow.table, tableRow.row);
+//                                        if (tmp.size() % batchSize == 0) {
+////                                            request(finalI, tmp, j);
+//                                            tmp = Table.createEmptyTableLike(tableRow.table);
+//                                        }
+//                                        tableRow = blockingQueue.get(j).poll();
+//                                    }
+////                                    request(finalI, tmp, j);
+//                                }
+//                            }
+//                            if (allIsNull) {
+//                                Thread.sleep(1);
+//                            }
                         } catch (InterruptedException e) {
                             logger.info("interrupted");
                             break;
@@ -112,22 +141,27 @@ public class RehashOutputTable {
 
     private int requestWithRetry(int thread, Table table, int toThread) {
         int i = 0;
-        int retryTimes = 1;
+        int j = 0;
+        int retryTimes = 3;
         while (true) {
             try {
-                return clients[thread].request("rehash",
+                return clients[thread].asyncRequest("rehash",
                         uniqueName,
                         toThread,
                         table);
             } catch (Throwable t) {
-                i++;
-                logger.error(format("request error %d times", i), t);
-                if (i >= retryTimes) {
-                    return -2;
+                if (!"request timeout".equals(t.getMessage())) {
+                    i++;
+                    logger.error(format("request to %s error %d times", hostPort, i), t);
+                    if (i >= retryTimes) {
+                        return -2;
+                    }
+                } else {
+                    j++;
+                    logger.warn("request to {} time out {} times", hostPort, j);
                 }
                 try {
                     Thread.sleep(5000);
-                    Node node = SystemProperty.getNodeByHash(toServer);
                     clients[thread].close();
                     clients[thread] = newClient(node.getHost(), node.getPort());
                 } catch (InterruptedException e) {
@@ -137,13 +171,20 @@ public class RehashOutputTable {
         }
     }
 
-    private void request(int thread, Table table, int toThread) {
+    private void request(int thread, Table table, int toThread) throws InterruptedException {
         if (null != table && table.size() > 0) {
             int ret = requestWithRetry(thread, table, toThread);
-            if (ret != table.size()) {
-                String msg = format("the peer received size: %d not equal to table.size: %d", ret, table.size());
-                throw new IllegalStateException(msg);
+            while (ret == -3) {
+                // 还没有创建好Rehash对象等5秒继续请求直到成功
+                String msg = format("%s received size: %d not equal to table.size: %d", hostPort, ret, table.size());
+                logger.warn(msg);
+                Thread.sleep(5000);
+                ret = requestWithRetry(thread, table, toThread);
             }
+//            if (ret != table.size()) {
+//                String msg = format("%s received size: %d not equal to table.size: %d", hostPort, ret, table.size());
+//                throw new IllegalStateException(msg);
+//            }
         }
     }
 

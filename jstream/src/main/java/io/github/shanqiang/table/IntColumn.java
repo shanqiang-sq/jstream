@@ -95,7 +95,7 @@ public class IntColumn implements ColumnInterface<Integer> {
         if (size == capacity) {
             capacity = ArrayUtil.calculateNewSize(capacity);
             if (null != valueIsNull) {
-                valueIsNull = valueIsNull.copy(size);
+                valueIsNull = valueIsNull.copy(capacity);
                 valueIsNull.init0(size);
             }
 

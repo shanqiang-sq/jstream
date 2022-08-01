@@ -1,7 +1,9 @@
 package io.github.shanqiang.network.server;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -33,8 +35,13 @@ public class Server {
         this.isSSL = isSSL;
         this.host = requireNonNull(host);
         this.port = port;
-        bossGroup = new NioEventLoopGroup(bossThreads);
-        workerGroup = new NioEventLoopGroup(workerThreads);
+        bossGroup = new NioEventLoopGroup(bossThreads
+                , new ThreadFactoryBuilder().setNameFormat("server-boss").build());
+        workerGroup = new NioEventLoopGroup(workerThreads
+                , new ThreadFactoryBuilder()
+//                .setPriority(9)
+                .setNameFormat("server-worker")
+                .build());
     }
 
     public void start() throws CertificateException, InterruptedException, SSLException {
@@ -63,8 +70,11 @@ public class Server {
                                     new RequestDecoder(),
                                     new ServerHandler());
                         }
-                    });
+                    })
+                    .option(ChannelOption.SO_BACKLOG, 12800)
+                    .childOption(ChannelOption.SO_KEEPALIVE, true);
 
+            logger.info("listening to " + host + ":" + port);
             b.bind(host, port).sync().channel().closeFuture().sync();
         } finally {
             close();

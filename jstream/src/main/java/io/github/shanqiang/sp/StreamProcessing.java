@@ -1,5 +1,6 @@
 package io.github.shanqiang.sp;
 
+import io.github.shanqiang.JStream;
 import io.github.shanqiang.sp.input.StreamTable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -15,17 +16,27 @@ import static java.util.Objects.requireNonNull;
 public class StreamProcessing {
     private static final Logger logger = LoggerFactory.getLogger(StreamProcessing.class);
 
+    protected final String name;
     protected final int thread;
     private final List<Thread> computeThreads;
     protected final StreamTable[] streamTables;
     //考虑到watermark和noDataDelay和网络延迟等情况在流表已经全部fetch完之后增加一个delay时间再返回true
     private final long finishDelay;
     private volatile long finishTime;
+    private static boolean failFast = true;
     private static Throwable globalException;
     private static final Set<StreamProcessing> allSP = new HashSet<>();
 
+    public synchronized static void setFailFast(boolean failFast) {
+        StreamProcessing.failFast = failFast;
+    }
+
     public synchronized static void handleException(Throwable t) {
         logger.error("", t);
+        if (failFast) {
+            System.exit(-1);
+        }
+
         globalException = t;
         for (StreamProcessing sp : allSP) {
             sp.stop();
@@ -41,21 +52,52 @@ public class StreamProcessing {
         this(thread, Duration.ofSeconds(33), streamTables);
     }
 
+    public StreamProcessing(String name, int thread, StreamTable... streamTables) {
+        this(name, thread, Duration.ofSeconds(33), streamTables);
+    }
+
     public StreamProcessing(int thread, Duration finishDelay, StreamTable... streamTables) {
+        this("", thread, finishDelay, streamTables);
+    }
+
+    public StreamProcessing(String name, int thread, Duration finishDelay, StreamTable... streamTables) {
+        this.name = requireNonNull(name);
         this.thread = thread;
         computeThreads = new ArrayList<>(thread);
         this.streamTables = requireNonNull(streamTables);
         this.finishDelay = finishDelay.toMillis();
         allSP.add(this);
+
+        JStream.startServer();
     }
 
+    public int getThread() {
+        return thread;
+    }
+
+    // todo: delete this function
+    @Deprecated
     public Rehash rehash(String uniqueName, String... hashByColumnNames) {
-        return new Rehash(thread, uniqueName, hashByColumnNames);
+        return new Rehash(96, uniqueName, hashByColumnNames);
     }
 
-    public Rehash rehash(int batchSize, long flushInterval, String uniqueName, String... hashByColumnNames) {
-        return new Rehash(thread, batchSize, flushInterval, uniqueName, hashByColumnNames);
-    }
+//    public Rehash rehash(StreamProcessing target, String uniqueName, String... hashByColumnNames) {
+//        return new Rehash(target.thread, uniqueName, hashByColumnNames);
+//    }
+//
+//    public Rehash rehash(StreamProcessing target
+//            , int toPerOtherServerThread
+//            , int queueSize
+//            , boolean rehashBetweenServers
+//            , String uniqueName
+//            , String... hashByColumnNames) {
+//        return new Rehash(target.thread
+//                , toPerOtherServerThread
+//                , queueSize
+//                , rehashBetweenServers
+//                , uniqueName
+//                , hashByColumnNames);
+//    }
 
     private boolean isFinished() {
         if (streamTables.length <= 0) {
@@ -103,7 +145,7 @@ public class StreamProcessing {
                         handleException(t);
                     }
                 }
-            }, "compute-" + i);
+            }, name + "-" + i);
             computeThreads.add(t);
         }
 

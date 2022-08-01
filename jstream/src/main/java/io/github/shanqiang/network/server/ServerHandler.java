@@ -7,6 +7,7 @@ import io.github.shanqiang.network.LZ4;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.util.ReferenceCountUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -45,11 +46,12 @@ public class ServerHandler extends ChannelInboundHandlerAdapter {
                 throw new UnknownCommandException(cmd);
             }
             ctx.write(ret);
-
-            frame.release();
         } catch (Throwable t) {
             logger.error("", t);
             ctx.write(-1);
+        } finally {
+            ReferenceCountUtil.release(msg);
+            ctx.flush();
         }
     }
 
