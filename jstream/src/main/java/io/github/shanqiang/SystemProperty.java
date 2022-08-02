@@ -1,5 +1,6 @@
 package io.github.shanqiang;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.github.shanqiang.network.server.Server;
 import io.github.shanqiang.sp.Node;
 
@@ -25,7 +26,8 @@ public class SystemProperty {
         init();
     }
 
-    private static void init() {
+    @VisibleForTesting
+    public static void init() {
         String strSelf = System.getProperty("self");
         if (null == strSelf) {
             return;

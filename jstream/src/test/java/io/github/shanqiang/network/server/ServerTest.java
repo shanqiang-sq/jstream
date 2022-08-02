@@ -1,6 +1,7 @@
 package io.github.shanqiang.network.server;
 
 import io.github.shanqiang.JStream;
+import io.github.shanqiang.SystemProperty;
 import io.github.shanqiang.network.client.Client;
 import io.github.shanqiang.sp.Rehash;
 import io.github.shanqiang.sp.StreamProcessing;
@@ -19,6 +20,8 @@ public class ServerTest {
     public void test() throws SSLException, InterruptedException {
         System.setProperty("self", "127.0.0.1:8823");
         System.setProperty("all", "127.0.0.1:8823");
+        SystemProperty.init();
+        JStream.stopServer();
         StreamProcessing streamProcessing = new StreamProcessing(1);
         // 等待StreamProcessing构造函数中的JStream.startServer完成启动
         Thread.sleep(3000);

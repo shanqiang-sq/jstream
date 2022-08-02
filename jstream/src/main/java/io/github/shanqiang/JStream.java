@@ -13,6 +13,7 @@ import static java.util.concurrent.Executors.newSingleThreadExecutor;
 public class JStream {
     private static final Logger logger = LoggerFactory.getLogger(JStream.class);
 
+    private static Server server;
     private static boolean started = false;
     public static synchronized void startServer() {
         if (started) {
@@ -24,7 +25,7 @@ public class JStream {
         if (null == self) {
             return;
         }
-        Server server = new Server(false
+        server = new Server(false
                 , self.getHost()
                 , self.getPort()
                 , Runtime.getRuntime().availableProcessors()
@@ -40,5 +41,13 @@ public class JStream {
                 }
             }
         });
+    }
+
+    public static synchronized void stopServer() throws InterruptedException {
+        if (!started) {
+            return;
+        }
+        server.close();
+        started = false;
     }
 }

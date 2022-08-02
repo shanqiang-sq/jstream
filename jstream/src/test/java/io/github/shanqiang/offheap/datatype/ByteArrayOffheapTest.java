@@ -20,6 +20,6 @@ public class ByteArrayOffheapTest {
         assert byteArrayOffheap1.compareTo(addr) > 0;
         assert byteArrayOffheap1.compareTo(byteArrayOffheap) > 0;
         byteArrayOffheap.free(addr, 0);
-        assert InternalUnsafe.getUsedMemory() == 0;
+        assert InternalUnsafe.getUsedMemory() <= pre;
     }
 }

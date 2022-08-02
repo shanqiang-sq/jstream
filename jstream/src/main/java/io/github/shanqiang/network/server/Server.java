@@ -39,7 +39,6 @@ public class Server {
                 , new ThreadFactoryBuilder().setNameFormat("server-boss").build());
         workerGroup = new NioEventLoopGroup(workerThreads
                 , new ThreadFactoryBuilder()
-//                .setPriority(9)
                 .setNameFormat("server-worker")
                 .build());
     }
@@ -81,12 +80,12 @@ public class Server {
         }
     }
 
-    public void close() {
+    public void close() throws InterruptedException {
         if (!bossGroup.isShuttingDown() && !bossGroup.isShutdown() && !bossGroup.isTerminated()) {
-            bossGroup.shutdownGracefully();
+            bossGroup.shutdownGracefully().sync();
         }
         if (!workerGroup.isShuttingDown() && !workerGroup.isShutdown() && !workerGroup.isTerminated()) {
-            workerGroup.shutdownGracefully();
+            workerGroup.shutdownGracefully().sync();
         }
     }
 }
