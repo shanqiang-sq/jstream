@@ -49,41 +49,37 @@ public class OverWindowBySize extends Window {
         this.additionalColumns = requireNonNull(additionalColumns);
     }
 
-    public List<Table> over(List<Table> tables) {
-        checkTablesSize(tables);
-
-        List<Table> ret = new ArrayList<>();
-        for (Table table : tables) {
-            List<Column> columns = new ArrayList<>(additionalColumns.length);
-            for (int i = 0; i < additionalColumns.length; i++) {
-                Column column = new Column(additionalColumns[i], table.size());
-                columns.add(column);
-            }
-
-            for (int i = 0; i < table.size(); i++) {
-                List<Comparable> key = TimeWindow.genPartitionKey(table, i, partitionByColumnNames);
-                SortedTable partitionedTable = TimeWindow.getPartitionedTable(key, table, partitionedTables, orderByColumnNames);
-
-                partitionedTable.addRow(table, i);
-
-                Comparable[] comparables = overFunction.agg(key, partitionedTable.rows());
-                for (int j = 0; j < additionalColumns.length; j++) {
-                    columns.get(j).add(comparables[j]);
-                }
-
-                if (partitionedTable.size() == windowSize) {
-                    partitionedTable.removeFirstRow();
-                }
-
-                if (partitionedTable.size() > windowSize) {
-                    throw new IllegalStateException();
-                }
-            }
-
-            table.addColumns(columns);
-            ret.add(table);
+    public Table over(Table hashed) {
+        Table table = hashed;
+        List<Column> columns = new ArrayList<>(additionalColumns.length);
+        for (int i = 0; i < additionalColumns.length; i++) {
+            Column column = new Column(additionalColumns[i], table.size());
+            columns.add(column);
         }
-        return ret;
+
+        for (int i = 0; i < table.size(); i++) {
+            List<Comparable> key = TimeWindow.genPartitionKey(table, i, partitionByColumnNames);
+            SortedTable partitionedTable = TimeWindow.getPartitionedTable(key, table, partitionedTables, orderByColumnNames);
+
+            partitionedTable.addRow(table, i);
+
+            Comparable[] comparables = overFunction.agg(key, partitionedTable.rows());
+            for (int j = 0; j < additionalColumns.length; j++) {
+                columns.get(j).add(comparables[j]);
+            }
+
+            if (partitionedTable.size() == windowSize) {
+                partitionedTable.removeFirstRow();
+            }
+
+            if (partitionedTable.size() > windowSize) {
+                throw new IllegalStateException();
+            }
+        }
+
+        table.addColumns(columns);
+
+        return table;
     }
 
     @Override

@@ -17,7 +17,7 @@ public class InsertableStreamTable extends AbstractStreamTable {
     }
 
     public InsertableStreamTable(int thread, Map<String, Type> columnTypeMap) {
-        super(thread, columnTypeMap, "|InsertableStreamTable");
+        super(thread, columnTypeMap, "|InsertableStreamTable", 100);
     }
 
     public void insert(int threadId, Comparable... values) {

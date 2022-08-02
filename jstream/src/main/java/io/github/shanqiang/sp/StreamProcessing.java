@@ -75,30 +75,6 @@ public class StreamProcessing {
         return thread;
     }
 
-    // todo: delete this function
-    @Deprecated
-    public Rehash rehash(String uniqueName, String... hashByColumnNames) {
-        return new Rehash(96, uniqueName, hashByColumnNames);
-    }
-
-//    public Rehash rehash(StreamProcessing target, String uniqueName, String... hashByColumnNames) {
-//        return new Rehash(target.thread, uniqueName, hashByColumnNames);
-//    }
-//
-//    public Rehash rehash(StreamProcessing target
-//            , int toPerOtherServerThread
-//            , int queueSize
-//            , boolean rehashBetweenServers
-//            , String uniqueName
-//            , String... hashByColumnNames) {
-//        return new Rehash(target.thread
-//                , toPerOtherServerThread
-//                , queueSize
-//                , rehashBetweenServers
-//                , uniqueName
-//                , hashByColumnNames);
-//    }
-
     private boolean isFinished() {
         if (streamTables.length <= 0) {
             return false;

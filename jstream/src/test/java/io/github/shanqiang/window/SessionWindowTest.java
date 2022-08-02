@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class SessionWindowTest {
 
@@ -55,6 +56,7 @@ public class SessionWindowTest {
         }}, new HashMap<>());
 
         StreamProcessing sp = new StreamProcessing(1, Duration.ofSeconds(5), insertableStreamTable);
+        StreamProcessing sp2 = new StreamProcessing(1, Duration.ofSeconds(5), insertableStreamTable);
         String[] hashBy = new String[]{"firstPartitionByColumn", "secondPartitionByColumn"};
         SessionWindow sessionWindow = new SessionWindow(Duration.ofMillis(10),
                 hashBy,
@@ -75,15 +77,22 @@ public class SessionWindowTest {
                         return comparablesList;
                     }
                 }, "windowStart", "windowEnd");
-        Rehash rehash = sp.rehash("rehash1", hashBy);
+        Rehash rehash = new Rehash(sp2,"rehash1", hashBy);
 
         List<Table> tables = new ArrayList<>();
-        sp.compute(new Compute() {
+        sp.computeNoWait(new Compute() {
             @Override
             public void compute(int myThreadIndex) throws InterruptedException {
                 Table table = insertableStreamTable.consume();
-                List<Table> tableList = rehash.rehash(table, myThreadIndex);
-                table = sessionWindow.session(tableList);
+                rehash.rehash(table);
+            }
+        });
+
+        sp2.compute(new Compute() {
+            @Override
+            public void compute(int myThreadIndex) throws InterruptedException {
+                Table table = rehash.consume(myThreadIndex, 1500, TimeUnit.MILLISECONDS);
+                table = sessionWindow.session(table);
                 if (table.size() > 0) {
                     tables.add(table);
                 }

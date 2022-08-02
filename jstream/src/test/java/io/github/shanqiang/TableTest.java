@@ -44,6 +44,14 @@ public class TableTest {
         assert table.getColumn("long1").get(0).equals(1L);
         assert table.getColumn("long1").get(1).equals(2L);
         assert table.getColumn("long1").get(2).equals(3L);
+
+        // 测试迭代器
+        int i = 0;
+        for (Row row : table) {
+            i++;
+            assert row.getLong("long1") == i;
+        }
+        assert i == table.size();
     }
 
     @Test

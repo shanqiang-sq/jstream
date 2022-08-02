@@ -87,7 +87,20 @@ public class KafkaStreamTable extends AbstractStreamTable {
         this(bootstrapServers, consumerGroupId, topic,
                 "org.apache.kafka.common.serialization.LongDeserializer",
                 "org.apache.kafka.common.serialization.StringDeserializer",
-                consumeFrom, consumeTo, columnTypeMap);
+                consumeFrom, consumeTo, 100, columnTypeMap);
+    }
+
+    public KafkaStreamTable(String bootstrapServers,
+                            String consumerGroupId,
+                            String topic,
+                            long consumeFrom,
+                            long consumeTo,
+                            int queueDepth,
+                            Map<String, Type> columnTypeMap) {
+        this(bootstrapServers, consumerGroupId, topic,
+                "org.apache.kafka.common.serialization.LongDeserializer",
+                "org.apache.kafka.common.serialization.StringDeserializer",
+                consumeFrom, consumeTo, queueDepth, columnTypeMap);
     }
 
     protected KafkaStreamTable(String bootstrapServers,
@@ -97,8 +110,9 @@ public class KafkaStreamTable extends AbstractStreamTable {
                                String valueDeserializer,
                                long consumeFrom,
                                long consumeTo,
+                               int queueDepth,
                                Map<String, Type> columnTypeMap) {
-        super(0, columnTypeMap, "|KafkaStreamTable|" + topic);
+        super(0, columnTypeMap, "|KafkaStreamTable|" + topic, queueDepth);
         this.topic = requireNonNull(topic);
         Properties properties = new Properties();
         properties.put(BOOTSTRAP_SERVERS_CONFIG, requireNonNull(bootstrapServers));

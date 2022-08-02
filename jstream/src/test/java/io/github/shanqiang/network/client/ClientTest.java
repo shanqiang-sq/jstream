@@ -8,7 +8,7 @@ import java.time.Duration;
 public class ClientTest {
     @Test
     public void test() throws SSLException, InterruptedException {
-        int total = 1000;
+        int total = 500;
         Thread[] threads = new Thread[total];
         for (int i = 0; i < total; i++) {
             threads[i] = new Thread(new Runnable() {

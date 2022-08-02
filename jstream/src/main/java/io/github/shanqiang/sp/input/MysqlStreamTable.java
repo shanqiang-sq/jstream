@@ -52,7 +52,7 @@ public class MysqlStreamTable extends AbstractStreamTable {
                                String sql,
                                int batchSize,
                                Map<String, Type> columnTypeMap) {
-        super(thread, columnTypeMap, "|MysqlStreamTable|" + sql);
+        super(thread, columnTypeMap, "|MysqlStreamTable|" + sql, 1000);
         this.url = requireNonNull(jdbcUrl);
         this.userName = requireNonNull(userName);
         this.password = requireNonNull(password);

@@ -40,14 +40,15 @@ public class QueueSizeLogger {
                     CollectionType collectionType = stats.get(name);
                     switch (collectionType.type) {
                         case QUEUE_SIZE:
-                            logger.info("{}: {sum: {}, max: {}}"
+                            logger.info("{}: {sum: {}, max: {}, min: {}}"
                                     , name
-                                    , sumQueueSize(name, collectionType.collection)
-                                    , maxQueueSize(name, collectionType.collection)
+                                    , sumQueueSize(collectionType.collection)
+                                    , maxQueueSize(collectionType.collection)
+                                    , minQueueSize(collectionType.collection)
                             );
                             break;
                         case RECORD_SIZE:
-                            logger.info("{}: {}", name, computeRecordSize(name, collectionType.collection));
+                            logger.info("{}: {}", name, computeRecordSize(collectionType.collection));
                             break;
                     }
                 }
@@ -66,7 +67,7 @@ public class QueueSizeLogger {
         stats.put(name, new CollectionType(collections, Type.RECORD_SIZE));
     }
 
-    private static long sumQueueSize(String name, Collection collections) {
+    private static long sumQueueSize(Collection collections) {
         long sum = 0;
         for (Object collection : collections) {
             sum += ((Collection) collection).size();
@@ -74,7 +75,7 @@ public class QueueSizeLogger {
         return sum;
     }
 
-    private static long maxQueueSize(String name, Collection collections) {
+    private static long maxQueueSize(Collection collections) {
         long max = 0;
         for (Object collection : collections) {
             long tmp = ((Collection) collection).size();
@@ -85,7 +86,18 @@ public class QueueSizeLogger {
         return max;
     }
 
-    private static long computeRecordSize(String name, Collection collections) {
+    private static long minQueueSize(Collection collections) {
+        long min = Long.MAX_VALUE;
+        for (Object collection : collections) {
+            long tmp = ((Collection) collection).size();
+            if (tmp < min) {
+                min = tmp;
+            }
+        }
+        return min;
+    }
+
+    private static long computeRecordSize(Collection collections) {
         long sum = 0;
         for (Object collection : collections) {
             ArrayBlockingQueue<Table> queue = (ArrayBlockingQueue<Table>) collection;

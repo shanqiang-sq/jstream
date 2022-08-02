@@ -9,19 +9,21 @@ import java.util.*;
 public class HashMapOffheapTest {
     @Test
     public void test() {
+        long pre = InternalUnsafe.getUsedMemory();
         HashMapOffheap<ByteArrayOffheap, ByteArrayOffheap> hashMapOffheap = new HashMapOffheap<>();
         ByteArrayOffheap key = new ByteArrayOffheap("aaa".getBytes());
         ByteArrayOffheap value = new ByteArrayOffheap("bbb".getBytes());
         hashMapOffheap.put(key, value);
         assert hashMapOffheap.get(key).compareTo(value) == 0;
         assert hashMapOffheap.get(key).equals(value);
-        assert InternalUnsafe.getUsedMemory() == 234;
+        // 批量跑test的情况下前面的test里创建的内存pre可能在这时被GC回收了，因此是小等于234而不是直等于234
+        assert InternalUnsafe.getUsedMemory() - pre <= 234;
         ByteArrayOffheap ccc = new ByteArrayOffheap("ccc".getBytes());
         hashMapOffheap.put(key, ccc);
         assert hashMapOffheap.get(key).equals(ccc);
 
         hashMapOffheap.free();
-        assert InternalUnsafe.getUsedMemory() == 0;
+        assert InternalUnsafe.getUsedMemory() <= pre;
 
         Set<ByteArrayOffheap> set = new HashSet<>();
         hashMapOffheap = new HashMapOffheap<>();
@@ -40,7 +42,10 @@ public class HashMapOffheapTest {
         }
         assert set.equals(set1);
 
-        int total = 2000_0000;
+        hashMapOffheap.free();
+        assert InternalUnsafe.getUsedMemory() <= pre;
+
+        int total = 200_0000;
         Map<String, String> map = new HashMap<>();
         long start = System.currentTimeMillis();
         for (int i = 0; i < total; i++) {
@@ -121,7 +126,7 @@ public class HashMapOffheapTest {
         assert hashMapOffheap.size() == 0;
 
         hashMapOffheap.free();
-        assert InternalUnsafe.getUsedMemory() == 0;
+        assert InternalUnsafe.getUsedMemory() <= pre;
         System.out.println("free elapse: " + ((System.currentTimeMillis() - endOffheap)/1000.0));
     }
 }

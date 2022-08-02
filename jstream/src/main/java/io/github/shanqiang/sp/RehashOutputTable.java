@@ -23,23 +23,26 @@ import static java.util.Objects.requireNonNull;
 public class RehashOutputTable {
     private static final Logger logger = LoggerFactory.getLogger(RehashOutputTable.class);
 
-    // 永不超时,通过 addQueueSizeLog 监控
-//    private final Duration requestTimeout = Duration.ofDays(50 * 365);
     private final Duration requestTimeout = Duration.ofSeconds(10);
     private final int thread;
     private final int toServer;
     private final String uniqueName;
     private final Client[] clients;
-    private final int batchSize = 5_0000;
+    private final int batchSize;
     private final List<BlockingQueue<Rehash.TableRow>> blockingQueue;
     private final ThreadPoolExecutor threadPoolExecutor;
     private final Node node;
     private final String hostPort;
 
-    RehashOutputTable(String uniqueName, int xxx, int toServer, int rehashThreadNum, int queueSize) {
-        if (xxx < 1) {
+    RehashOutputTable(String uniqueName, int toServer, int rehashThreadNum, int queueSize) {
+        this(uniqueName, 5_0000, toServer, rehashThreadNum, queueSize);
+    }
+
+    RehashOutputTable(String uniqueName, int batchSize, int toServer, int rehashThreadNum, int queueSize) {
+        if (batchSize < 1) {
             throw new IllegalArgumentException();
         }
+        this.batchSize = batchSize;
         clients = new Client[rehashThreadNum];
         node = SystemProperty.getNodeByHash(toServer);
         for (int j = 0; j < rehashThreadNum; j++) {
@@ -61,18 +64,15 @@ public class RehashOutputTable {
                 TimeUnit.SECONDS,
                 new ArrayBlockingQueue<>(1),
                 new ThreadFactoryBuilder()
-//                        .setPriority(7)
                         .setNameFormat(uniqueName + "-rehash-output-%d")
                         .build());
     }
 
     public void request(String command, Object... args) throws InterruptedException {
-        clients[0].request(command, args);
+        clients[0].asyncRequest(command, args);
     }
 
     public void produce(Table table, int row, int toThread) throws InterruptedException {
-//        return blockingQueue.get(toThread).offer(new Rehash.TableRow(table, row), 100, TimeUnit.MILLISECONDS);
-//        blockingQueue.get(toThread).put(new Rehash.TableRow(table, row));
         while (!blockingQueue.get(toThread).offer(new Rehash.TableRow(table, row), 5, TimeUnit.SECONDS)) {
             logger.warn(format("exceed 5 seconds cannot offer to %s out queue", uniqueName));
         }
@@ -85,6 +85,7 @@ public class RehashOutputTable {
                 @Override
                 public void run() {
                     Table tmp = null;
+                    long lastFlushTime = System.currentTimeMillis();
                     while (!Thread.interrupted()) {
                         try {
                             Rehash.TableRow tableRow = blockingQueue.get(finalI).poll(100, TimeUnit.MILLISECONDS);
@@ -99,26 +100,12 @@ public class RehashOutputTable {
                                 request(finalI, tmp, finalI);
                                 tmp = Table.createEmptyTableLike(tableRow.table);
                             }
-//                            boolean allIsNull = true;
-//                            for (int j = 0; j < blockingQueue.size(); j++) {
-//                                Rehash.TableRow tableRow = blockingQueue.get(j).poll();
-//                                if (null != tableRow) {
-//                                    allIsNull = false;
-//                                    Table tmp = Table.createEmptyTableLike(tableRow.table);
-//                                    while (null != tableRow) {
-//                                        tmp.append(tableRow.table, tableRow.row);
-//                                        if (tmp.size() % batchSize == 0) {
-////                                            request(finalI, tmp, j);
-//                                            tmp = Table.createEmptyTableLike(tableRow.table);
-//                                        }
-//                                        tableRow = blockingQueue.get(j).poll();
-//                                    }
-////                                    request(finalI, tmp, j);
-//                                }
-//                            }
-//                            if (allIsNull) {
-//                                Thread.sleep(1);
-//                            }
+                            long now = System.currentTimeMillis();
+                            if (now - lastFlushTime > 1000) {
+                                request(finalI, tmp, finalI);
+                                tmp = Table.createEmptyTableLike(tableRow.table);
+                                lastFlushTime = now;
+                            }
                         } catch (InterruptedException e) {
                             logger.info("interrupted");
                             break;
@@ -174,17 +161,10 @@ public class RehashOutputTable {
     private void request(int thread, Table table, int toThread) throws InterruptedException {
         if (null != table && table.size() > 0) {
             int ret = requestWithRetry(thread, table, toThread);
-            while (ret == -3) {
-                // 还没有创建好Rehash对象等5秒继续请求直到成功
+            if (ret != table.size()) {
                 String msg = format("%s received size: %d not equal to table.size: %d", hostPort, ret, table.size());
-                logger.warn(msg);
-                Thread.sleep(5000);
-                ret = requestWithRetry(thread, table, toThread);
+                throw new IllegalStateException(msg);
             }
-//            if (ret != table.size()) {
-//                String msg = format("%s received size: %d not equal to table.size: %d", hostPort, ret, table.size());
-//                throw new IllegalStateException(msg);
-//            }
         }
     }
 

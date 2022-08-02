@@ -25,7 +25,8 @@ public class RehashTest {
     @Test
     public void rehash() throws InterruptedException {
         StreamProcessing streamProcessing = new StreamProcessing(2);
-        Rehash rehash = streamProcessing.rehash("rehash1", "c1");
+        StreamProcessing streamProcessing2 = new StreamProcessing(2);
+        Rehash rehash = new Rehash(streamProcessing2,"rehash1", "c1");
 
         Map<String, Type> columnTypeMap = new ColumnTypeBuilder().
                 column("c1", Type.VARBYTE).
@@ -46,15 +47,22 @@ public class RehashTest {
         blockingQueue.add(finalTable);
 
         int[] a = new int[2];
-        streamProcessing.compute(new Compute() {
+        streamProcessing.computeNoWait(new Compute() {
             @Override
             public void compute(int myThreadIndex) throws InterruptedException {
                 Table table = blockingQueue.poll();
                 if (null == table) {
                     table = Table.createEmptyTableLike(finalTable);
                 }
-                List<Table> tableList1 = rehash.rehash(table, myThreadIndex);
-                a[myThreadIndex] += tableList1.get(0).size();
+                rehash.rehash(table);
+            }
+        });
+
+        streamProcessing2.compute(new Compute() {
+            @Override
+            public void compute(int myThreadIndex) throws InterruptedException {
+                Table table = rehash.consume(myThreadIndex);
+                a[myThreadIndex] += table.size();
                 if (a[0] >= 2 * N) {
                     Thread.currentThread().interrupt();
                 }

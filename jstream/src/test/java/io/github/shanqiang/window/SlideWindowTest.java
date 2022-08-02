@@ -79,6 +79,7 @@ public class SlideWindowTest {
 
                         List<Comparable[]> comparablesList = new ArrayList<>(rows.size());
                         for (Row row : rows) {
+                            assert row.getLong("ts") >= windowStart && row.getLong("ts") < windowEnd;
                             comparablesList.add(new Comparable[]{row.getString("firstPartitionByColumn"),
                                     row.getString("secondPartitionByColumn"),
                                     row.getLong("ts"),
@@ -91,14 +92,22 @@ public class SlideWindowTest {
                 }, "firstPartitionByColumn", "secondPartitionByColumn", "ts", "windowStart", "windowEnd");
         slideWindow.setWatermark(Duration.ofMillis(0));
 
-        Rehash rehash = sp.rehash("rehash1", "firstPartitionByColumn", "secondPartitionByColumn");
-        List<Table> tables = new ArrayList<>();
-        AtomicInteger atomicInteger = new AtomicInteger();
-        sp.compute(new Compute() {
+        StreamProcessing sp2 = new StreamProcessing(1);
+        Rehash rehash = new Rehash(sp2, "rehash1", "firstPartitionByColumn", "secondPartitionByColumn");
+        sp.computeNoWait(new Compute() {
             @Override
             public void compute(int myThreadIndex) throws InterruptedException {
-                List<Table> tables1 = rehash.rehash(insertableStreamTable.consume(), myThreadIndex);
-                Table table = slideWindow.slide(tables1);
+                rehash.rehash(insertableStreamTable.consume());
+            }
+        });
+
+        List<Table> tables = new ArrayList<>();
+        AtomicInteger atomicInteger = new AtomicInteger();
+        sp2.compute(new Compute() {
+            @Override
+            public void compute(int myThreadIndex) throws InterruptedException {
+                Table table = rehash.consume(myThreadIndex);
+                table = slideWindow.slide(table);
                 if (table.size() > 0) {
                     for (int i = 0; i < table.size(); i++) {
                         logger.info("{}, {}, {}, {}, {}, {}",
@@ -116,15 +125,6 @@ public class SlideWindowTest {
                 }
             }
         });
-
-        // ts=23的那一条超出了[5,15)前进后的窗口范围[10,20) 在窗口外触发了，连同[5,15)内的3条共4条数据在同一个Table返回
-        assert tables.get(1).size() == 4;
-        assert (long) tables.get(1).getColumn("ts").get(3) == 23L;
-        assert (long) tables.get(1).getColumn("windowEnd").get(3) == 30L;
-        // ts=103的那一条超出了[15,25)前进后的窗口范围[20,30) 在窗口外触发了，连同[15,25)内的1条(ts=24那条)共2条数据在同一个Table返回
-        assert tables.get(3).size() == 2;
-        // ts=301的那一条超出了[20,30)前进后的窗口范围[25,35) 在窗口外触发了，连同[20,30)内的1条(ts=24那条)共2条数据在同一个Table返回
-        assert tables.get(5).size() == 2;
 
         // ts=10的两条和ts=13的一条
         assert mapMap.get(new ArrayList<Comparable>(2) {{

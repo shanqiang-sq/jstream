@@ -90,7 +90,6 @@ public class Client {
 
         group = new NioEventLoopGroup(1
                 , new ThreadFactoryBuilder()
-//                .setPriority(8)
                 .setNameFormat("client")
                 .build());
         try {

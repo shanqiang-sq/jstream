@@ -40,7 +40,21 @@ public class KafkaStreamTableExt extends KafkaStreamTable {
                                long consumeFrom,
                                long consumeTo,
                                Map<String, Type> columnTypeMap) {
-        super(bootstrapServers, consumerGroupId, topic, keyDeserializer, valueDeserializer, consumeFrom, consumeTo, columnTypeMap);
+        this(bootstrapServers, consumerGroupId, topic, keyDeserializer, valueDeserializer
+                , consumeFrom, consumeTo, 100, columnTypeMap);
+    }
+
+    public KafkaStreamTableExt(String bootstrapServers,
+                               String consumerGroupId,
+                               String topic,
+                               String keyDeserializer,
+                               String valueDeserializer,
+                               long consumeFrom,
+                               long consumeTo,
+                               int queueDepth,
+                               Map<String, Type> columnTypeMap) {
+        super(bootstrapServers, consumerGroupId, topic, keyDeserializer, valueDeserializer
+                , consumeFrom, consumeTo, queueDepth, columnTypeMap);
     }
 
     @Override

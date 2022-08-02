@@ -17,11 +17,17 @@ import java.util.Map;
 public class ServerTest {
     @Test
     public void test() throws SSLException, InterruptedException {
+        System.setProperty("self", "127.0.0.1:8823");
+        System.setProperty("all", "127.0.0.1:8823");
         StreamProcessing streamProcessing = new StreamProcessing(1);
+        // 等待StreamProcessing构造函数中的JStream.startServer完成启动
+        Thread.sleep(3000);
+
         String uniqueName = "rehash";
         Rehash rehash = new Rehash(streamProcessing
                 , 1
                 , 10000_0000
+                , 1000_0000
                 , true
                 , uniqueName
                 , "c1");
@@ -38,9 +44,7 @@ public class ServerTest {
         }
         Table table = tableBuilder.build();
 
-        JStream.startServer();
-        Thread.sleep(3000);
-        int total = 960;
+        int total = 100;
         Thread[] threads = new Thread[total];
         for (int i = 0; i < total; i++) {
             threads[i] = new Thread(new Runnable() {
@@ -49,9 +53,9 @@ public class ServerTest {
                     try {
                         Client client = new Client(false, "127.0.0.1", 8823, Duration.ofSeconds(10));
                         for (int j = 0; j < 10; j++) {
-                            client.request("rehash", uniqueName, 0, table);
+                            client.asyncRequest("rehash", uniqueName, 0, table);
                         }
-                        client.close();
+//                        client.close();
                     } catch (SSLException e) {
                         e.printStackTrace();
                     } catch (InterruptedException e) {
@@ -66,6 +70,8 @@ public class ServerTest {
             threads[i].join();
         }
 
+        Table table1 = rehash.consumeBatch(0);
+        assert table1.size() == 1000_0000;
         //上面的代码不抛异常即为通过测试
     }
 }

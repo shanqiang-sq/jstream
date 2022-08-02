@@ -26,6 +26,7 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.ReentrantLock;
 
 import static io.github.shanqiang.sp.QueueSizeLogger.addQueueSizeLog;
+import static io.github.shanqiang.table.Table.EMPTY_TABLE;
 import static io.github.shanqiang.table.Table.createEmptyTableLike;
 import static java.lang.Math.abs;
 import static java.lang.String.format;
@@ -68,65 +69,56 @@ public class Rehash {
 
     private final List<BlockingQueue<TableRow>> blockingQueueInThread;
 
-    Rehash(int targetThread, String uniqueName, String... hashByColumnNames) {
-        this(targetThread
-                , Runtime.getRuntime().availableProcessors()
-                , 80_0000
-                , 80_0000
-                , true
-                , false
-                , uniqueName
-                , hashByColumnNames);
-    }
-
     public Rehash(StreamProcessing target, String uniqueName, String... hashByColumnNames) {
         this(target
                 , Runtime.getRuntime().availableProcessors()
-                , 80_0000
+                , 100_0000
                 , true
                 , uniqueName
                 , hashByColumnNames);
     }
 
     public Rehash(StreamProcessing target
-            , int toPerOtherServerThread
+            , int toOtherServerBatchSize
             , int queueSize
             , boolean rehashBetweenServers
             , String uniqueName
             , String... hashByColumnNames) {
-        this(target, toPerOtherServerThread, queueSize, queueSize, rehashBetweenServers, uniqueName, hashByColumnNames);
+        this(target, toOtherServerBatchSize, queueSize, queueSize
+                , rehashBetweenServers, uniqueName, hashByColumnNames);
     }
 
     public Rehash(StreamProcessing target
-            , int toPerOtherServerThread
+            , int toOtherServerBatchSize
             , int queueSize
             , int maxTableSize
             , boolean rehashBetweenServers
             , String uniqueName
             , String... hashByColumnNames) {
-        this(target.thread, toPerOtherServerThread, queueSize, maxTableSize, rehashBetweenServers, false, uniqueName, hashByColumnNames);
+        this(target, toOtherServerBatchSize, queueSize, maxTableSize
+                , rehashBetweenServers, false, uniqueName, hashByColumnNames);
     }
 
     public Rehash(StreamProcessing target
-            , int toPerOtherServerThread
+            , int toOtherServerBatchSize
             , int queueSize
             , int maxTableSize
             , boolean rehashBetweenServers
             , boolean logHashUneven
             , String uniqueName
             , String... hashByColumnNames) {
-        this(target.thread, toPerOtherServerThread, queueSize, maxTableSize, rehashBetweenServers, logHashUneven, uniqueName, hashByColumnNames);
+        this(target.thread, toOtherServerBatchSize, queueSize, maxTableSize, rehashBetweenServers, logHashUneven, uniqueName, hashByColumnNames);
     }
 
     /**
-     * java -jar jstream_task.jar -Dself=localhost:8888 -Dall=localhost:8888,127.0.0.1:9999
+     * java -Dself=localhost:8888 -Dall=localhost:8888,127.0.0.1:9999 -jar jstream_task.jar
      *
      * @param uniqueName must be globally unique. we need use this name to decide rehash data from other servers
      *                   should be processed by which Rehash object.
      *                   automatically generate this name may lead to subtle race condition problem in concurrent case,
      *                   "name order" on different server may be different so let user define this name may be more sensible.
      */
-    Rehash(int targetThread, int toPerOtherServerThread, int queueSize, int maxTableSize, boolean rehashBetweenServers
+    Rehash(int targetThread, int toOtherServerBatchSize, int queueSize, int maxTableSize, boolean rehashBetweenServers
             , boolean logHashUneven, String uniqueName, String... hashByColumnNames) {
         this.targetThread = targetThread;
         this.rehashBetweenServers = rehashBetweenServers;
@@ -153,7 +145,7 @@ public class Rehash {
             if (i == myHash) {
                 continue;
             }
-            rehashOutputTables[i] = new RehashOutputTable(uniqueName, toPerOtherServerThread, i, targetThread, queueSize);
+            rehashOutputTables[i] = new RehashOutputTable(uniqueName, toOtherServerBatchSize, i, targetThread, queueSize);
             rehashOutputTables[i].start();
         }
 
@@ -231,12 +223,14 @@ public class Rehash {
 
     public static int fromOtherServer(String uniqueName, int thread, ByteBuffer data) throws InterruptedException {
         Rehash rehash = rehashes.get(uniqueName);
-        if (null == rehash) {
-            return -3;
+        while (null == rehash) {
+            logger.warn("has not created rehash object for uniqueName: {}", uniqueName);
+            Thread.sleep(5000);
+            // 还没有创建好Rehash对象等5秒重新get直到成功
+            rehash = rehashes.get(uniqueName);
         }
         Table table = Table.deserialize(data);
         for (int i = 0; i < table.size(); i++) {
-//            rehash.blockingQueueInThread.get(thread).put(new TableRow(table, i));
             while (!rehash.blockingQueueInThread.get(thread).offer(new TableRow(table, i), 5, TimeUnit.SECONDS)) {
                 logger.warn(format("data from other server exceed 5 seconds cannot offer to %s queue", uniqueName));
             }
@@ -244,20 +238,15 @@ public class Rehash {
         return table.size();
     }
 
-    public void rebalance(Table table, int myThreadIndex) throws InterruptedException {
-        rehash(table, myThreadIndex, false);
+    public void rebalance(Table table) throws InterruptedException {
+        rehash(table, false);
     }
 
-    public List<Table> rehash(Table table) throws InterruptedException {
-        return rehash(table, -1, true);
+    public void rehash(Table table) throws InterruptedException {
+        rehash(table, true);
     }
 
-    public List<Table> rehash(Table table, int myThreadIndex) throws InterruptedException {
-        return rehash(table, myThreadIndex, true);
-    }
-
-    private List<Table> rehash(Table table, int myThreadIndex, boolean isHash) throws InterruptedException {
-//        Table tmp = createEmptyTableLike(table);
+    private void rehash(Table table, boolean isHash) throws InterruptedException {
         Random random = null;
         if (!isHash) {
             random = new Random();
@@ -278,34 +267,14 @@ public class Rehash {
             int absThread = abs(h % targetThread);
             if (rehashBetweenServers) {
                 if (absServer != myHash) {
-//                    while (!rehashOutputTables[h % serverCount].produce(table, i, h % targetThread)) {
-//                        consumeAll(tmp, myThreadIndex);
-//                    }
                     rehashOutputTables[absServer].produce(table, i, absThread);
                     continue;
                 }
             }
-//            if (h == myThreadIndex) {
-//                tmp.append(table, i);
-//            } else {
-//                // 自己的队列空对方的队列满的情况下会死循环, timeout 100ms确保CPU不会无谓费电
-//                while (!blockingQueueInThread.get(h).offer(new TableRow(table, i), 100, TimeUnit.MILLISECONDS)) {
-//                    // offer不到队列里的情况下大家先消费一下自己队列里的数据之后再尝试offer否则互相都offer不进去导致死锁
-//                    consumeAll(tmp, myThreadIndex);
-//                }
-//            blockingQueueInThread.get(h).put(new TableRow(table, i));
             while (!blockingQueueInThread.get(absThread).offer(new TableRow(table, i), 5, TimeUnit.SECONDS)) {
                 logger.warn(format("exceed 5 seconds cannot offer to %s queue", uniqueName));
             }
-//            }
         }
-
-//        consumeAll(tmp, myThreadIndex);
-//
-//        List<Table> ret = new ArrayList<>(1);
-//        ret.add(tmp);
-//        return ret;
-        return new ArrayList();
     }
 
     private void ifHashUneven(BlockingQueue<TableRow> blockingQueue) {
@@ -355,14 +324,11 @@ public class Rehash {
         ifHashUneven(blockingQueue);
         TableRow tableRow = blockingQueue.poll(l, timeUnit);
         if (null == tableRow) {
-            return null;
+            return EMPTY_TABLE;
         }
 
         Table table = Table.createEmptyTableLike(tableRow.table);
         while (null != tableRow) {
-            // 会不会某个线程快某个线程慢导致慢的那个线程的tmp持续变大？不会。
-            // 因为慢的线程可以offer到快的线程里而快的线程offer不到慢的线程里（慢的线程队列更容易满）从而使它们速度拉平
-            // 极特殊的情况下比如数据倾斜特别严重的情况下可能出现多个线程往一个线程里持续灌数据的情况导致tmp一直增涨到OOM
             table.append(tableRow.table, tableRow.row);
             if (table.size() >= maxTableSize) {
                 break;

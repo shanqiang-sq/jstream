@@ -10,6 +10,8 @@ import io.github.shanqiang.function.OverWindowFunction;
 import io.github.shanqiang.function.ScalarFunction;
 import io.github.shanqiang.function.TransformFunction;
 import io.github.shanqiang.offheap.InternalUnsafe;
+import io.github.shanqiang.offheap.datastructure.HashMapOffheap;
+import javafx.scene.control.Tab;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -19,10 +21,13 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.ConcurrentModificationException;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 import java.util.Scanner;
 import java.util.Set;
 
@@ -37,8 +42,11 @@ import static java.util.Objects.requireNonNull;
 import static sun.misc.Unsafe.ARRAY_BYTE_BASE_OFFSET;
 
 @NotThreadSafe
-public class Table {
+public class Table implements Iterable<Row> {
     private static final Logger logger = LoggerFactory.getLogger(Table.class);
+    public static final Table EMPTY_TABLE = new Table(new ArrayList<Column>(1) {{
+        add(new Column<>("no_use", 1));
+    }});
     private final LinkedHashMap<String, Integer> columnName2Index = new LinkedHashMap<>();
     private final List<Column> columns;
     private int size;
@@ -49,6 +57,7 @@ public class Table {
 
     /**
      * print the table
+     *
      * @param auto true will print the all table no need stdin
      */
     public void print(boolean auto) {
@@ -244,7 +253,7 @@ public class Table {
     public int size() {
         return size;
     }
-    
+
     public boolean isEmpty() {
         return size <= 0;
     }
@@ -310,12 +319,11 @@ public class Table {
     }
 
     /**
-     *
-     * @param scalarFunction        will pass every row to this function, returned array size must be equal to
-     *                              additionalColumns.length, return null this row will be filtered
-     * @param selectAll             whether select all columns
-     * @param additionalColumns     if selectAll is true this is additional columns, else this will be all new columns
-     * @return                      the new generated table
+     * @param scalarFunction    will pass every row to this function, returned array size must be equal to
+     *                          additionalColumns.length, return null this row will be filtered
+     * @param selectAll         whether select all columns
+     * @param additionalColumns if selectAll is true this is additional columns, else this will be all new columns
+     * @return the new generated table
      */
     public Table select(ScalarFunction scalarFunction, boolean selectAll, String... additionalColumns) {
         List<Column> columns = genColumns(additionalColumns, selectAll);
@@ -337,16 +345,15 @@ public class Table {
     }
 
     /**
-     *
-     * @param scalarFunction        will pass every row to this function, returned array size add transformFunction returned
-     *                              element size in list must be equal to additionalColumns.length, return null this row
-     *                              will be filtered
-     * @param transformFunction     will pass every row to this function, returned element size in list add scalarFunction
-     *                              returned array size must be equal to additionalColumns.length and all element size in
-     *                              list must be equal. return null or empty list this row will be filtered
-     * @param selectAll             whether select all columns
-     * @param additionalColumns     if selectAll is true this is additional columns, else this will be all new columns
-     * @return                      the new generated table
+     * @param scalarFunction    will pass every row to this function, returned array size add transformFunction returned
+     *                          element size in list must be equal to additionalColumns.length, return null this row
+     *                          will be filtered
+     * @param transformFunction will pass every row to this function, returned element size in list add scalarFunction
+     *                          returned array size must be equal to additionalColumns.length and all element size in
+     *                          list must be equal. return null or empty list this row will be filtered
+     * @param selectAll         whether select all columns
+     * @param additionalColumns if selectAll is true this is additional columns, else this will be all new columns
+     * @return the new generated table
      */
     public Table select(ScalarFunction scalarFunction, TransformFunction transformFunction, boolean selectAll, String... additionalColumns) {
         List<Column> columns = genColumns(additionalColumns, selectAll);
@@ -631,7 +638,8 @@ public class Table {
 
     /**
      * Notice: returned table compound with the references of this table's columns
-     * @param columnNames   column names
+     *
+     * @param columnNames column names
      * @return table compound with the references of this table's columns denote by columnNames
      */
     public Table project(String... columnNames) {
@@ -644,7 +652,8 @@ public class Table {
 
     /**
      * Notice: returned table compound with the references of this table's columns
-     * @param columnNames   except column names
+     *
+     * @param columnNames except column names
      * @return table compound with the references of this table's columns except the columns denote by columnNames
      */
     public Table projectNegative(String... columnNames) {
@@ -662,5 +671,30 @@ public class Table {
         }
 
         return new Table(columns);
+    }
+
+    @Override
+    public Iterator<Row> iterator() {
+        return new RowIterator(this);
+    }
+
+    private final class RowIterator implements Iterator<Row> {
+        private int next;
+        private final Table table;
+
+        RowIterator(Table table)
+        {
+            this.table = table;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return next < table.size;
+        }
+
+        @Override
+        public Row next() {
+            return new RowByTable(table, next++);
+        }
     }
 }

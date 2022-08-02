@@ -86,12 +86,6 @@ public class TimeWindow extends Window {
     }
 
     public List<Table> watermark(Table table) {
-        return watermark(new ArrayList<Table>(1) {{
-            add(table);
-        }});
-    }
-
-    public List<Table> watermark(List<Table> tables) {
         Thread curThread = Thread.currentThread();
         InThread inThread = threads.get(curThread);
         if (null == inThread) {
@@ -100,11 +94,7 @@ public class TimeWindow extends Window {
             threads.put(curThread, inThread);
         }
 
-        long maxDataTime = 0;
-        for (Table table : tables) {
-            maxDataTime = max(maxDataTime, watermark(table, inThread));
-        }
-
+        long maxDataTime = watermark(table, inThread);
         long now = System.currentTimeMillis();
         if (0 == maxDataTime) {
             return matureTables(now - inThread.lastDataSystemTime + inThread.lastDataTime, inThread.tables);
@@ -119,6 +109,10 @@ public class TimeWindow extends Window {
     }
 
     private long watermark(Table table, InThread inThread) {
+        if (null == table) {
+            return 0;
+        }
+
         long maxDataTime = 0;
         for (int i = 0; i < table.size(); i++) {
             long dataTime = (long) table.getColumn(timeColumnName).get(i);

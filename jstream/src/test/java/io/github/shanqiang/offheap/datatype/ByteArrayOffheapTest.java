@@ -10,8 +10,10 @@ public class ByteArrayOffheapTest {
     public void test() {
         byte[] bytes = "abcdefghij".getBytes(StandardCharsets.UTF_8);
         ByteArrayOffheap byteArrayOffheap = new ByteArrayOffheap(bytes);
+        long pre = InternalUnsafe.getUsedMemory();
         long addr = byteArrayOffheap.allocAndSerialize(0);
-        assert InternalUnsafe.getUsedMemory() == Long.BYTES + Integer.BYTES + bytes.length;
+        // 批量跑test的情况下前面的test里创建的内存pre可能在这时被GC回收了，因此是小等于而不是直等于
+        assert InternalUnsafe.getUsedMemory() - pre <= Long.BYTES + Integer.BYTES + bytes.length;
         assert byteArrayOffheap.compareTo(addr) == 0;
         ByteArrayOffheap byteArrayOffheap1 = new ByteArrayOffheap("bbcdefghij".getBytes(StandardCharsets.UTF_8));
         assert byteArrayOffheap.deserialize(addr).compareTo(byteArrayOffheap1) < 0;

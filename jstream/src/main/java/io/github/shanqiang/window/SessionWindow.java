@@ -86,11 +86,10 @@ public class SessionWindow extends TimeWindow {
 
     /**
      * enter window and trigger compute if a window is timeout
-     * @param tables come from Rehash.rehash or Rehash.rebalance
+     * @param hashed come from Rehash.rehash or Rehash.rebalance
      * @return the table compound with the rows returned by the windowFunction with the input of timeout windows
      */
-    public Table session(List<Table> tables) {
-        checkTablesSize(tables);
+    public Table session(Table hashed) {
         Thread curThread = Thread.currentThread();
         InThreadSessionWindow inThreadWindow = threadWindow.get(curThread);
         if (null == inThreadWindow) {
@@ -104,7 +103,7 @@ public class SessionWindow extends TimeWindow {
 
         TableBuilder retTable = newTableBuilder(returnedColumnNames);
 
-        tables = watermark(tables);
+        List<Table> tables = watermark(hashed);
 
         boolean noData = true;
         for (Table table1 : tables) {

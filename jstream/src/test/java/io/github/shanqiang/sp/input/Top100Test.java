@@ -19,6 +19,7 @@ import io.github.shanqiang.util.AggregationUtil;
 import io.github.shanqiang.util.WindowUtil;
 import io.github.shanqiang.window.SessionWindow;
 import io.github.shanqiang.window.SlideWindow;
+import javafx.scene.control.Tab;
 import org.junit.Test;
 
 import java.time.Duration;
@@ -113,8 +114,10 @@ public class Top100Test {
         kafkaStreamTable.start();
 
         StreamProcessing sp = new StreamProcessing(1);
+        StreamProcessing sp2 = new StreamProcessing(1);
+        StreamProcessing sp3 = new StreamProcessing(1);
         String[] hashBy = new String[]{"commodity_id"};
-        Rehash rehashForSlideWindow = sp.rehash("uniqueNameForSlideWindow", hashBy);
+        Rehash rehashForSlideWindow = new Rehash(sp2, "uniqueNameForSlideWindow", hashBy);
         String[] returnedColumns = new String[]{"commodity_id",
                 "sales_volume",
                 "window_start"};
@@ -135,7 +138,7 @@ public class Top100Test {
         slideWindow.setWatermark(Duration.ofSeconds(2));
 
         hashBy = new String[]{"window_start"};
-        Rehash rehashForSessionWindow = sp.rehash("uniqueNameForSessionWindow", hashBy);
+        Rehash rehashForSessionWindow = new Rehash(sp3, "uniqueNameForSessionWindow", hashBy);
         SessionWindow sessionWindow = new SessionWindow(Duration.ofSeconds(1),
                 hashBy,
                 "window_start",
@@ -152,7 +155,7 @@ public class Top100Test {
                 }, returnedColumns);
         sessionWindow.setWatermark(Duration.ofSeconds(3));
 
-        sp.compute(new Compute() {
+        sp.computeNoWait(new Compute() {
             @Override
             public void compute(int myThreadIndex) throws InterruptedException {
                 Table table = kafkaStreamTable.consume();
@@ -173,10 +176,25 @@ public class Top100Test {
                                 as("name", "commodity_name").
                                 as("price", "commodity_price").
                                 build());
-                List<Table> tables = rehashForSlideWindow.rehash(table, myThreadIndex);
-                table = slideWindow.slide(tables);
-                tables = rehashForSessionWindow.rehash(table, myThreadIndex);
-                table = sessionWindow.session(tables);
+                rehashForSlideWindow.rehash(table);
+            }
+        });
+
+        sp2.computeNoWait(new Compute() {
+            @Override
+            public void compute(int myThreadIndex) throws InterruptedException {
+                Table table = rehashForSlideWindow.consume(myThreadIndex);
+                table = slideWindow.slide(table);
+                rehashForSessionWindow.rehash(table);
+
+            }
+        });
+
+        sp3.compute(new Compute() {
+            @Override
+            public void compute(int myThreadIndex) throws InterruptedException {
+                Table table = rehashForSessionWindow.consume(myThreadIndex);
+                table = sessionWindow.session(table);
                 if (table.size() > 0) {
                     table.print();
                     assert table.size() == 3;

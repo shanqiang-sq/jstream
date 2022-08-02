@@ -277,13 +277,12 @@ public class SlideWindow extends TimeWindow {
      * 如果sleepMsWhenNoData这个足够小会使没有数据的情况下窗口前进足够多次从而赶上数据的跳跃
      * 总结：通常数据量大数据间隔非常短窗口大小明显大于数据间隔的情况下不用考虑这个问题，极端情况下需要考虑
      *
-     * @param tables come from Rehash.rehash or Rehash.rebalance
+     * @param hashed come from Rehash.rehash or Rehash.rebalance
      * @return result table
      */
-    public Table slide(List<Table> tables) {
-        checkTablesSize(tables);
+    public Table slide(Table hashed) {
         TableBuilder retTable = newTableBuilder(columnNames);
-        tables = watermark(tables);
+        List<Table> tables = watermark(hashed);
 
         Thread curThread = Thread.currentThread();
         Map<List<Comparable>, SlideTable> partitionedTables = threadPartitionedTables.get(curThread);

@@ -47,18 +47,23 @@ public abstract class AbstractStreamTable implements StreamTable {
     protected final List<ByteArray> columns;
     protected final Duration batch = Duration.ofSeconds(1);
     protected final int thread;
-    protected final int queueDepth = 1000;
+    protected final int queueDepth;
     protected final String sign;
     protected long sleepMs = 1;
     private final Random random = new Random();
 
     protected final List<ArrayBlockingQueue<Table>> arrayBlockingQueueList;
 
-    protected AbstractStreamTable(int thread, Map<String, Type> columnTypeMap, String sign) {
+    protected AbstractStreamTable(int thread, Map<String, Type> columnTypeMap, String sign, int queueDepth) {
         if (thread < 0) {
             throw new IllegalArgumentException();
         }
         this.thread = thread;
+
+        if (queueDepth < 1) {
+            throw new IllegalArgumentException();
+        }
+        this.queueDepth = queueDepth;
 
         this.columnTypeMap = requireNonNull(columnTypeMap);
         if (columnTypeMap.size() < 1) {
@@ -104,6 +109,12 @@ public abstract class AbstractStreamTable implements StreamTable {
         return true;
     }
 
+    /**
+     * 注意：thread 数量必须是 arrayBlockingQueueList.size() 的倍数，否则会造成消费不均衡，thread数量不够会造成队列一直没人消费
+     * @param myThreadIndex
+     * @return
+     * @throws InterruptedException
+     */
     final public Table consume(int myThreadIndex) throws InterruptedException {
         if (arrayBlockingQueueList.size() <= 0) {
             return emptyTable;

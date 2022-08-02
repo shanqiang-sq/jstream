@@ -44,7 +44,7 @@ public class TumbleWindow {
         slideWindow.setWatermark(watermark);
     }
 
-    public Table tumble(List<Table> tables) {
-        return slideWindow.slide(tables);
+    public Table tumble(Table hashed) {
+        return slideWindow.slide(hashed);
     }
 }

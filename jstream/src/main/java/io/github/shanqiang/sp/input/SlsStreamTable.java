@@ -135,7 +135,7 @@ public class SlsStreamTable extends AbstractStreamTable {
                           int consumeFrom,
                           int consumeTo,
                           Map<String, Type> columnTypeMap) {
-        super(thread, columnTypeMap, "|SlsStreamTable|" + project + "|" + logstore);
+        super(thread, columnTypeMap, "|SlsStreamTable|" + project + "|" + logstore, 100);
 
         this.endPoint = requireNonNull(endPoint);
         this.accessId = requireNonNull(accessId);
