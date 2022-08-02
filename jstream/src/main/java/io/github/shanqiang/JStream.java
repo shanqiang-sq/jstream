@@ -19,7 +19,6 @@ public class JStream {
         if (started) {
             return;
         }
-        started = true;
 
         Node self = SystemProperty.getSelf();
         if (null == self) {
@@ -41,6 +40,8 @@ public class JStream {
                 }
             }
         });
+
+        started = true;
     }
 
     public static synchronized void stopServer() throws InterruptedException {
