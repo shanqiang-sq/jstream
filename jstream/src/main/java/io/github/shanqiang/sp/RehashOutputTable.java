@@ -82,10 +82,17 @@ public class RehashOutputTable {
         for (int i = 0; i < thread; i++) {
             final int finalI = i;
             threadPoolExecutor.submit(new Runnable() {
+                private Table tmp = null;
+                private long lastFlushTime = System.currentTimeMillis();
+
+                private void flush(Rehash.TableRow tableRow, long now) throws InterruptedException {
+                    request(finalI, tmp, finalI);
+                    tmp = Table.createEmptyTableLike(tableRow.table);
+                    lastFlushTime = now;
+                }
+
                 @Override
                 public void run() {
-                    Table tmp = null;
-                    long lastFlushTime = System.currentTimeMillis();
                     while (!Thread.interrupted()) {
                         try {
                             Rehash.TableRow tableRow = blockingQueue.get(finalI).poll(100, TimeUnit.MILLISECONDS);
@@ -96,15 +103,12 @@ public class RehashOutputTable {
                                 tmp = Table.createEmptyTableLike(tableRow.table);
                             }
                             tmp.append(tableRow.table, tableRow.row);
-                            if (tmp.size() >= batchSize) {
-                                request(finalI, tmp, finalI);
-                                tmp = Table.createEmptyTableLike(tableRow.table);
-                            }
                             long now = System.currentTimeMillis();
+                            if (tmp.size() >= batchSize) {
+                                flush(tableRow, now);
+                            }
                             if (now - lastFlushTime > 1000) {
-                                request(finalI, tmp, finalI);
-                                tmp = Table.createEmptyTableLike(tableRow.table);
-                                lastFlushTime = now;
+                                flush(tableRow, now);
                             }
                         } catch (InterruptedException e) {
                             logger.info("interrupted");

@@ -190,6 +190,7 @@ public class KafkaOutputTable extends AbstractOutputTable {
                                     if (i > 0 && i % batchSize == 0) {
                                         producer.flush();
                                         now = System.currentTimeMillis();
+                                        lastFlushTime = now;
                                     }
                                 }
 
