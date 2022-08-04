@@ -490,7 +490,7 @@ public class DorisOutputTable extends AbstractOutputTable {
                     logger.error("", t);
                 }
             }
-        }, 0, 1, TimeUnit.MINUTES);
+        }, 0, 30, TimeUnit.MINUTES);
 
         for (int i = 0; i < thread; i++) {
             threadPoolExecutor.submit(new Runnable() {
@@ -549,7 +549,7 @@ public class DorisOutputTable extends AbstractOutputTable {
                             }
                         }
                     } catch (Throwable t) {
-                        logger.error("", t);
+                        handleException(t);
                     }
                 }
             });
