@@ -28,7 +28,7 @@ under the License.
     <groupId>io.github.shanqiang-sq</groupId>
     <artifactId>jstream-root</artifactId>
     <packaging>pom</packaging>
-    <version>1.0.36</version>
+    <version>1.0.37-SNAPSHOT</version>
 
     <modules>
         <module>jstream-shaded-jar</module>
@@ -167,6 +167,6 @@ under the License.
         <url>https://github.com/shanqiang-sq/jstream</url>
         <connection>git@github.com:shanqiang-sq/jstream.git</connection>
         <developerConnection>scm:git:git@github.com:shanqiang-sq/jstream.git</developerConnection>
-        <tag>jstream-root-1.0.36</tag>
+        <tag>jstream</tag>
     </scm>
 </project>
