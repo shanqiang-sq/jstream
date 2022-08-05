@@ -165,10 +165,11 @@ public class RehashOutputTable {
     private void request(int thread, Table table, int toThread) throws InterruptedException {
         if (null != table && table.size() > 0) {
             int ret = requestWithRetry(thread, table, toThread);
-            if (ret != table.size()) {
-                String msg = format("%s received size: %d not equal to table.size: %d", hostPort, ret, table.size());
-                throw new IllegalStateException(msg);
-            }
+            // todo: requestWithRetry的异步请求也应该拿到返回值做table size校验
+//            if (ret != table.size()) {
+//                String msg = format("%s received size: %d not equal to table.size: %d", hostPort, ret, table.size());
+//                throw new IllegalStateException(msg);
+//            }
         }
     }
 
