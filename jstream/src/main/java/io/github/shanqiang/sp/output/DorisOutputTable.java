@@ -292,9 +292,6 @@ public class DorisOutputTable extends AbstractOutputTable {
         this.tableName = requireNonNull(tableName);
         this.loadUrl = format("http://%s/api/%s/%s/_stream_load", loadAddress, database, tableName);
         this.distributedByColumns = requireNonNull(distributedByColumns);
-        if (distributedByColumns.length < 1) {
-            throw new IllegalArgumentException("at least one distributed by column");
-        }
         this.maxRetryTimes = requireNonNull(maxRetryTimes);
         this.batchSize = batchSize;
         this.flushInterval = requireNonNull(flushInterval).toMillis();
