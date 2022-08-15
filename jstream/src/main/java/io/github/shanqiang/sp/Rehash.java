@@ -263,8 +263,9 @@ public class Rehash {
                 h = random.nextInt(serverCount * targetThread);
             }
             // 注意 abs(h) % serverCount 在h == Integer.MAX_VALUE的情况下会由于abs之后溢出产生负值
-            int absServer = abs(h % serverCount);
-            int absThread = abs(h % targetThread);
+            h = abs(h % (serverCount * targetThread));
+            int absServer = h / targetThread;
+            int absThread = h % targetThread;
             if (rehashBetweenServers) {
                 if (absServer != myHash) {
                     rehashOutputTables[absServer].produce(table, i, absThread);

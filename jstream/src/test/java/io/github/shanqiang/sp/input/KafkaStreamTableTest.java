@@ -63,7 +63,7 @@ public class KafkaStreamTableTest {
                         getTimeInMillis(),
                 columnTypeMap);
         kafkaStreamTable.start();
-        Thread.sleep(1_000);
+        Thread.sleep(3_000);
         table = kafkaStreamTable.consume();
 
         assert table.size() == 2;

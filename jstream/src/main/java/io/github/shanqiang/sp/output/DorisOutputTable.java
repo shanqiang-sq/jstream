@@ -92,6 +92,29 @@ public class DorisOutputTable extends AbstractOutputTable {
             String password,
             String database,
             String tableName,
+            String partitionByTimeColumn,
+            int buckets,
+            Map<String, Type> columnTypeMap) throws IOException {
+        this(Runtime.getRuntime().availableProcessors(),
+                jdbcHostPorts,
+                loadAddress,
+                user,
+                password,
+                database,
+                tableName,
+                new String[0],
+                partitionByTimeColumn,
+                buckets,
+                columnTypeMap);
+    }
+
+    public DorisOutputTable(
+            String jdbcHostPorts,
+            String loadAddress,
+            String user,
+            String password,
+            String database,
+            String tableName,
             String[] distributedByColumns,
             String partitionByTimeColumn,
             int buckets,
@@ -104,6 +127,30 @@ public class DorisOutputTable extends AbstractOutputTable {
                 database,
                 tableName,
                 distributedByColumns,
+                partitionByTimeColumn,
+                buckets,
+                columnTypeMap);
+    }
+
+    public DorisOutputTable(
+            int thread,
+            String jdbcHostPorts,
+            String loadAddress,
+            String user,
+            String password,
+            String database,
+            String tableName,
+            String partitionByTimeColumn,
+            int buckets,
+            Map<String, Type> columnTypeMap) throws IOException {
+        this(thread,
+                jdbcHostPorts,
+                loadAddress,
+                user,
+                password,
+                database,
+                tableName,
+                new String[0],
                 partitionByTimeColumn,
                 buckets,
                 columnTypeMap);
@@ -138,6 +185,66 @@ public class DorisOutputTable extends AbstractOutputTable {
                 buckets,
                 1,
                 "SSD",
+                columnTypeMap);
+    }
+
+    /**
+     * 无需指定distributedByColumns的构造函数，采用随机负载均衡
+     *
+     * @param thread
+     * @param batchSize
+     * @param flushInterval
+     * @param jdbcHostPorts
+     * @param loadAddress
+     * @param user
+     * @param password
+     * @param database
+     * @param tableName
+     * @param maxRetryTimes
+     * @param autoDropTable
+     * @param dataSpanHours
+     * @param partitionByTimeColumn
+     * @param buckets
+     * @param replicationNum
+     * @param storageMedium
+     * @param columnTypeMap
+     * @throws IOException
+     */
+    public DorisOutputTable(
+            int thread,
+            int batchSize,
+            Duration flushInterval,
+            String jdbcHostPorts,
+            String loadAddress,
+            String user,
+            String password,
+            String database,
+            String tableName,
+            int maxRetryTimes,
+            boolean autoDropTable,
+            int dataSpanHours,
+            String partitionByTimeColumn,
+            int buckets,
+            int replicationNum,
+            String storageMedium,
+            Map<String, Type> columnTypeMap) throws IOException {
+        this(thread,
+                batchSize,
+                flushInterval,
+                jdbcHostPorts,
+                loadAddress,
+                user,
+                password,
+                database,
+                tableName,
+                new String[0],
+                maxRetryTimes,
+                autoDropTable,
+                dataSpanHours,
+                partitionByTimeColumn,
+                buckets,
+                replicationNum,
+                storageMedium,
                 columnTypeMap);
     }
 
@@ -273,12 +380,12 @@ public class DorisOutputTable extends AbstractOutputTable {
                 tableName, fieldsSchema);
         createTableSql += format(" PARTITION BY RANGE (%s)" +
                         " () " +
-                        " DISTRIBUTED BY HASH (%s) BUCKETS %d " +
+                        " DISTRIBUTED BY %s BUCKETS %d " +
                         " PROPERTIES(\"replication_num\" = \"%d\", " +
                         "\"in_memory\" = \"false\", " +
                         "\"storage_medium\" = \"%s\");",
                 partitionByTimeColumn,
-                String.join(",", distributedByColumns),
+                distributedByColumns.length == 0 ? "RANDOM" : "HASH (" + String.join(",", distributedByColumns) + ")",
                 buckets,
                 replicationNum,
                 storageMedium);

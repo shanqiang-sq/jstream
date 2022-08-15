@@ -49,7 +49,7 @@ public abstract class AbstractStreamTable implements StreamTable {
     protected final int thread;
     protected final int queueDepth;
     protected final String sign;
-    protected long sleepMs = 1;
+    protected long sleepMs = 100;
     private final Random random = new Random();
 
     protected final List<ArrayBlockingQueue<Table>> arrayBlockingQueueList;
