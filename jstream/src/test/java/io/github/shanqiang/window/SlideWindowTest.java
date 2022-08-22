@@ -39,20 +39,20 @@ public class SlideWindowTest {
         insertableStreamTable.insert(0, "firstPartitionByColumn1", "secondPartitionByColumn1", 10L);
         insertableStreamTable.insert(0, "firstPartitionByColumn1", "secondPartitionByColumn1", 10L);
 
-        insertableStreamTable.insert(0, "firstPartitionByColumn1", "secondPartitionByColumn1", 13L);
+        insertableStreamTable.insert(0, "firstPartitionByColumn1", "secondPartitionByColumn1", 13L);    // [5,15) [10,20)
 
         //下面这条记录触发了前面4条记录的计算（windowTimeout=10ms）
-        insertableStreamTable.insert(0, "firstPartitionByColumn1", "secondPartitionByColumn1", 23L);
-        insertableStreamTable.insert(0, "firstPartitionByColumn1", "secondPartitionByColumn1", 24L);
+        insertableStreamTable.insert(0, "firstPartitionByColumn1", "secondPartitionByColumn1", 23L);    // 触发[5,15) 前进到[10,20) 然后自己单窗口[20,30)
+        insertableStreamTable.insert(0, "firstPartitionByColumn1", "secondPartitionByColumn1", 24L);    // 触发[10,20) 前进到[15,25) 进入[15,25)
 
         //下面这条记录触发了上面time=23的那条记录的计算（windowTimeout=10ms）
         //这条记录之后没有数据了所以要等到noDataDelay（2000ms）之后才会触发这条记录的计算
-        insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 103L);
+        insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 103L);   // 触发24 in [15,25) 前进到[20,30) 然后自己单窗口
 
         insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 2L);
-        insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 301L);
-        insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 302L);
-        insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 303L);
+        insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 301L);   // 触发24 in [20,30) 前进到[25,35) 然后自己单窗口
+        insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 302L);   // 前进到[30,40) 然后自己单窗口
+        insertableStreamTable.insert(0, "firstPartitionByColumn2", "secondPartitionByColumn2", 303L);   // 前进到[35,45) 然后自己单窗口
 
         Map<List<Comparable>, Map<List<Long>, Integer>> mapMap = new HashMap<>();
         mapMap.put(new ArrayList<Comparable>(2) {{

@@ -1,6 +1,7 @@
 package io.github.shanqiang.sp.input;
 
 import io.github.shanqiang.criteria.JoinCriteria;
+import io.github.shanqiang.function.AggAllRowTimeWindowFunction;
 import io.github.shanqiang.function.AggTimeWindowFunction;
 import io.github.shanqiang.function.TimeWindowFunction;
 import io.github.shanqiang.sp.Compute;
@@ -125,7 +126,7 @@ public class Top100Test {
                 Duration.ofMinutes(30),
                 hashBy,
                 "__time__",
-                new AggTimeWindowFunction() {
+                new AggAllRowTimeWindowFunction() {
                     @Override
                     public Comparable[] agg(List<Comparable> partitionByColumns, List<Row> rows, long windowStart, long windowEnd) {
                         return new Comparable[]{

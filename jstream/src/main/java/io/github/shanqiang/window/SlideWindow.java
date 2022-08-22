@@ -1,6 +1,7 @@
 package io.github.shanqiang.window;
 
 import io.github.shanqiang.exception.OutOfOrderException;
+import io.github.shanqiang.function.AggAllRowTimeWindowFunction;
 import io.github.shanqiang.function.AggTimeWindowFunction;
 import io.github.shanqiang.function.TimeWindowFunction;
 import io.github.shanqiang.table.Row;
@@ -76,8 +77,10 @@ public class SlideWindow extends TimeWindow {
     private final String[] partitionByColumnNames;
     private final TimeWindowFunction windowFunction;
     private final AggTimeWindowFunction aggTimeWindowFunction;
+    private final AggAllRowTimeWindowFunction aggAllRowTimeWindowFunction;
     private final String[] columnNames;
     private final Map<Thread, Map<List<Comparable>, SlideTable>> threadPartitionedTables = new ConcurrentHashMap<>();
+    private final Map<Thread, Map<List<Comparable>, Comparable[]>> threadPartitionedAggResult = new ConcurrentHashMap<>();
     private final Map<Thread, WindowTime> windowTimeMap = new ConcurrentHashMap<>();
     private final String sign;
 
@@ -112,8 +115,22 @@ public class SlideWindow extends TimeWindow {
                 slideDuration,
                 partitionByColumnNames,
                 timeColumnName,
-                null,
                 aggTimeWindowFunction,
+                StoreType.STORE_BY_COLUMN,
+                returnedColumnNames);
+    }
+
+    public SlideWindow(Duration windowSizeDuration,
+                       Duration slideDuration,
+                       String[] partitionByColumnNames,
+                       String timeColumnName,
+                       AggAllRowTimeWindowFunction aggAllRowTimeWindowFunction,
+                       String... returnedColumnNames) {
+        this(windowSizeDuration,
+                slideDuration,
+                partitionByColumnNames,
+                timeColumnName,
+                aggAllRowTimeWindowFunction,
                 StoreType.STORE_BY_COLUMN,
                 returnedColumnNames);
     }
@@ -129,7 +146,6 @@ public class SlideWindow extends TimeWindow {
                 partitionByColumnNames,
                 timeColumnName,
                 windowFunction,
-                null,
                 StoreType.STORE_BY_COLUMN,
                 returnedColumnNames);
     }
@@ -147,6 +163,25 @@ public class SlideWindow extends TimeWindow {
                 timeColumnName,
                 null,
                 aggTimeWindowFunction,
+                null,
+                storeType,
+                returnedColumnNames);
+    }
+
+    public SlideWindow(Duration windowSizeDuration,
+                       Duration slideDuration,
+                       String[] partitionByColumnNames,
+                       String timeColumnName,
+                       AggAllRowTimeWindowFunction aggAllRowTimeWindowFunction,
+                       StoreType storeType,
+                       String... returnedColumnNames) {
+        this(windowSizeDuration,
+                slideDuration,
+                partitionByColumnNames,
+                timeColumnName,
+                null,
+                null,
+                aggAllRowTimeWindowFunction,
                 storeType,
                 returnedColumnNames);
     }
@@ -164,6 +199,7 @@ public class SlideWindow extends TimeWindow {
                 timeColumnName,
                 windowFunction,
                 null,
+                null,
                 storeType,
                 returnedColumnNames);
     }
@@ -174,6 +210,7 @@ public class SlideWindow extends TimeWindow {
                         String timeColumnName,
                         TimeWindowFunction windowFunction,
                         AggTimeWindowFunction aggTimeWindowFunction,
+                        AggAllRowTimeWindowFunction aggAllRowTimeWindowFunction,
                         StoreType storeType,
                         String... returnedColumnNames) {
         super(storeType, timeColumnName);
@@ -194,6 +231,7 @@ public class SlideWindow extends TimeWindow {
         }
         this.windowFunction = windowFunction;
         this.aggTimeWindowFunction = aggTimeWindowFunction;
+        this.aggAllRowTimeWindowFunction = aggAllRowTimeWindowFunction;
         this.columnNames = requireNonNull(returnedColumnNames);
         if (columnNames.length < 1) {
             throw new IllegalArgumentException("at least one returned column");
@@ -205,13 +243,22 @@ public class SlideWindow extends TimeWindow {
 
     private void enterWindow(Table table,
                              int row,
-                             Map<List<Comparable>, SlideTable> partitionedTables) {
-        getPartitionedSlideTable(genPartitionKey(table, row, partitionByColumnNames),
-                table,
-                partitionedTables,
-                timeColumnName,
-                storeType)
-                .addRow(table, row);
+                             Map<List<Comparable>, SlideTable> partitionedTables,
+                             Map<List<Comparable>, Comparable[]> partitionedAggResult,
+                             WindowTime windowTime) {
+        List<Comparable> key = genPartitionKey(table, row, partitionByColumnNames);
+        if (null != aggTimeWindowFunction) {
+            Comparable[] preAggResult = partitionedAggResult.get(key);
+            preAggResult = aggTimeWindowFunction.agg(preAggResult, key, new RowByTable(table, row), windowTime.startTime, windowTime.startTime + windowSizeDurationMs);
+            partitionedAggResult.put(key, preAggResult);
+        } else {
+            getPartitionedSlideTable(key,
+                    table,
+                    partitionedTables,
+                    timeColumnName,
+                    storeType)
+                    .addRow(table, row);
+        }
     }
 
     private void triggerAllWindow(TableBuilder retTable,
@@ -235,6 +282,20 @@ public class SlideWindow extends TimeWindow {
         }
     }
 
+    private void triggerAllWindowWithPreAgg(TableBuilder retTable,
+                                            WindowTime windowTime,
+                                            Map<List<Comparable>, Comparable[]> partitionedAggResult) {
+        List<List<Comparable>> willRemove = new ArrayList<>();
+        for (List<Comparable> key : partitionedAggResult.keySet()) {
+            Comparable[] preAggResult = partitionedAggResult.get(key);
+            appendRow(retTable, key, preAggResult, windowTime.startTime, windowTime.startTime + windowSizeDurationMs);
+            willRemove.add(key);
+        }
+        for (List<Comparable> key : willRemove) {
+            partitionedAggResult.remove(key);
+        }
+    }
+
     private void appendRow(TableBuilder retTable, List<Comparable> key, List<Row> rows, long windowStart, long windowEnd) {
         if (windowFunction != null) {
             List<Comparable[]> comparablesList = windowFunction.transform(key,
@@ -242,30 +303,46 @@ public class SlideWindow extends TimeWindow {
                     windowStart,
                     windowEnd);
             appendRows(retTable, comparablesList);
-        } else {
-            Comparable[] comparables = aggTimeWindowFunction.agg(key,
+        } else if (aggAllRowTimeWindowFunction != null) {
+            Comparable[] comparables = aggAllRowTimeWindowFunction.agg(key,
                     rows,
                     windowStart,
                     windowEnd);
             appendRow(retTable, comparables);
+        } else {
+            throw new IllegalArgumentException("should call the other appendRow function");
         }
     }
 
-    private void triggerOneElemWindow(TableBuilder retTable, Table table, int i, long elemDataTime) {
+    private void appendRow(TableBuilder retTable, List<Comparable> key, Comparable[] preAggResult, long windowStart, long windowEnd) {
+        Comparable[] comparables = aggTimeWindowFunction.aggEnd(
+                preAggResult,
+                key,
+                windowStart,
+                windowEnd);
+        appendRow(retTable, comparables);
+    }
+
+    private void triggerOneRowWindow(TableBuilder retTable, Table table, int i, long elemDataTime) {
         List<Comparable> key = genPartitionKey(table, i, partitionByColumnNames);
         long windowStart = elemDataTime / windowSizeDurationMs * windowSizeDurationMs;
         Row row = new RowByTable(table, i);
-        List<Row> rows = new ArrayList<>(1);
-        rows.add(row);
-        appendRow(retTable, key, rows, windowStart, windowStart + windowSizeDurationMs);
+        if (aggTimeWindowFunction != null) {
+            Comparable[] aggResult = aggTimeWindowFunction.agg(null, key, row, windowStart, windowStart + windowSizeDurationMs);
+            appendRow(retTable, key, aggResult, windowStart, windowStart + windowSizeDurationMs);
+        } else {
+            List<Row> rows = new ArrayList<>(1);
+            rows.add(row);
+            appendRow(retTable, key, rows, windowStart, windowStart + windowSizeDurationMs);
+        }
     }
 
     /**
      * enter window and trigger compute if slide duration is arrived
-     *
+     * <p>
      * 没数据的情况下系统sleep时长默认为100ms（避免无数据情况下的CPU占用过高，见AbstractStreamTable.sleepMsWhenNoData），
      * 因此默认小于100ms的滑动步长应该被认为无法精确处理（注意即使将该值调为1ms由于数据处理本身也要占用时间是否得到了精确处理需要自己评估）
-     *
+     * <p>
      * 数据间隔大于窗口大小并且sleepMsWhenNoData太大的情况下会导致窗口前进的速度跟不上数据跳跃的速度进而导致相邻的数据也会在同一窗口中
      * 分多次触发计算而不是在同一窗口中一次完成计算
      * 比如窗口大小为10ms滑动间隔为5ms 数据时序为 3ms，10ms，300ms，301ms，302ms
@@ -285,10 +362,20 @@ public class SlideWindow extends TimeWindow {
         List<Table> tables = watermark(hashed);
 
         Thread curThread = Thread.currentThread();
-        Map<List<Comparable>, SlideTable> partitionedTables = threadPartitionedTables.get(curThread);
-        if (null == partitionedTables) {
-            partitionedTables = new HashMap<>();
-            threadPartitionedTables.put(curThread, partitionedTables);
+        Map<List<Comparable>, SlideTable> partitionedTables = null;
+        Map<List<Comparable>, Comparable[]> partitionedAggResult = null;
+        if (aggTimeWindowFunction != null) {
+            partitionedAggResult = threadPartitionedAggResult.get(curThread);
+            if (null == partitionedAggResult) {
+                partitionedAggResult = new HashMap<>();
+                threadPartitionedAggResult.put(curThread, partitionedAggResult);
+            }
+        } else {
+            partitionedTables = threadPartitionedTables.get(curThread);
+            if (null == partitionedTables) {
+                partitionedTables = new HashMap<>();
+                threadPartitionedTables.put(curThread, partitionedTables);
+            }
         }
 
         WindowTime windowTime = windowTimeMap.get(curThread);
@@ -297,7 +384,7 @@ public class SlideWindow extends TimeWindow {
         for (Table table : tables) {
             if (table.size() > 0) {
                 noData = false;
-                windowTime = hopOneTable(retTable, table, windowTime, curThread, partitionedTables);
+                windowTime = hopOneTable(retTable, table, windowTime, curThread, partitionedTables, partitionedAggResult);
             }
         }
         if (noData) {
@@ -308,7 +395,11 @@ public class SlideWindow extends TimeWindow {
             if (now - windowTime.lastDataSystemTime > noDataDelay) {
                 long dataTime = now - windowTime.lastDataSystemTime + windowTime.lastDataTime;
                 if (dataTime >= windowTime.startTime + windowSizeDurationMs) {
-                    triggerAllWindow(retTable, windowTime, partitionedTables);
+                    if (null != aggTimeWindowFunction) {
+                        triggerAllWindowWithPreAgg(retTable, windowTime, partitionedAggResult);
+                    } else {
+                        triggerAllWindow(retTable, windowTime, partitionedTables);
+                    }
                     windowTime.startTime = dataTime / windowSizeDurationMs * windowSizeDurationMs;
                     logger.info("no data window advanced, now: {}, lastDataSystemTime: {}, " +
                                     "partitionByColumnNames: {}, timeColumnName: {}",
@@ -329,7 +420,8 @@ public class SlideWindow extends TimeWindow {
                                    Table table,
                                    WindowTime windowTime,
                                    Thread curThread,
-                                   Map<List<Comparable>, SlideTable> partitionedTables) {
+                                   Map<List<Comparable>, SlideTable> partitionedTables,
+                                   Map<List<Comparable>, Comparable[]> partitionedAggResult) {
         //时间列必须是bigint Long类型否则抛异常让用户感知到
         long dataTime = (long) table.getColumn(timeColumnName).get(0);
         if (null == windowTime) {
@@ -346,21 +438,26 @@ public class SlideWindow extends TimeWindow {
                 //时间列必须是bigint Long类型否则抛异常让用户感知到
                 dataTime = (long) table.getColumn(timeColumnName).get(i);
                 if (dataTime >= windowTime.startTime + windowSizeDurationMs) {
-                    triggerAllWindow(retTable, windowTime, partitionedTables);
+                    if (null != aggTimeWindowFunction) {
+                        triggerAllWindowWithPreAgg(retTable, windowTime, partitionedAggResult);
+                    } else {
+                        triggerAllWindow(retTable, windowTime, partitionedTables);
+                    }
+
                     windowTime.startTime += slideDurationMs;
 
                     if (dataTime >= windowTime.startTime + windowSizeDurationMs) {
-                        triggerOneElemWindow(retTable, table, i, dataTime);
+                        triggerOneRowWindow(retTable, table, i, dataTime);
                         warn(dataTime, windowTime.startTime, null);
                     } else {
-                        enterWindow(table, i, partitionedTables);
+                        enterWindow(table, i, partitionedTables, partitionedAggResult, windowTime);
                     }
                 } else {
                     if (dataTime < windowTime.startTime) {
-                        triggerOneElemWindow(retTable, table, i, dataTime);
+                        triggerOneRowWindow(retTable, table, i, dataTime);
                         warn(dataTime, windowTime.startTime, null);
                     } else {
-                        enterWindow(table, i, partitionedTables);
+                        enterWindow(table, i, partitionedTables, partitionedAggResult, windowTime);
                     }
                 }
             } catch (OutOfOrderException e) {
@@ -373,6 +470,9 @@ public class SlideWindow extends TimeWindow {
 
     @Override
     public List<Row> getRows(List<Comparable> partitionBy) {
+        if (null != aggTimeWindowFunction) {
+            throw new IllegalArgumentException("AggTimeWindowFunction only save current aggregate result, please use other window function");
+        }
         SlideTable partitionedTable = threadPartitionedTables.get(Thread.currentThread()).get(partitionBy);
         if (null == partitionedTable) {
             return null;
