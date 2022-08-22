@@ -1,8 +1,6 @@
 package io.github.shanqiang.window;
 
-import io.github.shanqiang.function.AggTimeWindowFunction;
-import io.github.shanqiang.function.TimeWindowFunction;
-import io.github.shanqiang.offheap.ByteArray;
+import io.github.shanqiang.function.ReduceTimeWindowFunction;
 import io.github.shanqiang.sp.Compute;
 import io.github.shanqiang.sp.Rehash;
 import io.github.shanqiang.sp.StreamProcessing;
@@ -11,7 +9,6 @@ import io.github.shanqiang.table.ColumnTypeBuilder;
 import io.github.shanqiang.table.Row;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.Type;
-import org.checkerframework.checker.units.qual.C;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,15 +16,12 @@ import org.slf4j.LoggerFactory;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static java.util.Arrays.asList;
-
-public class SlideWindowAggTest {
-    private static final Logger logger = LoggerFactory.getLogger(SlideWindowAggTest.class);
+public class SlideWindowReduceTest {
+    private static final Logger logger = LoggerFactory.getLogger(SlideWindowReduceTest.class);
 
     @Test
     public void slide() {
@@ -64,7 +58,7 @@ public class SlideWindowAggTest {
                 Duration.ofMillis(5),
                 new String[]{"firstPartitionByColumn", "secondPartitionByColumn"},
                 "ts",
-                new AggTimeWindowFunction() {
+                new ReduceTimeWindowFunction() {
                     @Override
                     public Comparable[] agg(Comparable[] preAggResult, List<Comparable> partitionByColumns, Row newRow, long windowStart, long windowEnd) {
                         long sum = newRow.getLong("ts");
@@ -83,7 +77,7 @@ public class SlideWindowAggTest {
                     @Override
                     public Comparable[] aggEnd(Comparable[] preAggResult, List<Comparable> partitionByColumns, long windowStart, long windowEnd) {
                         logger.info("{}", Arrays.toString(preAggResult));
-                        return AggTimeWindowFunction.super.aggEnd(preAggResult, partitionByColumns, windowStart, windowEnd);
+                        return ReduceTimeWindowFunction.super.aggEnd(preAggResult, partitionByColumns, windowStart, windowEnd);
                     }
                 }, "firstPartitionByColumn", "secondPartitionByColumn", "ts", "windowStart", "windowEnd");
         slideWindow.setWatermark(Duration.ofMillis(0));

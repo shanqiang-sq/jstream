@@ -1,6 +1,5 @@
 package io.github.shanqiang.window;
 
-import io.github.shanqiang.function.AggAllRowTimeWindowFunction;
 import io.github.shanqiang.function.AggTimeWindowFunction;
 import io.github.shanqiang.function.TimeWindowFunction;
 import io.github.shanqiang.table.Row;
@@ -22,7 +21,7 @@ public class SessionWindow extends TimeWindow {
     private final long windowTimeoutMs;
     private final String[] partitionByColumnNames;
     private final TimeWindowFunction windowFunction;
-    private final AggAllRowTimeWindowFunction aggTimeWindowFunction;
+    private final AggTimeWindowFunction aggTimeWindowFunction;
     private final String[] returnedColumnNames;
     private final Map<Thread, InThreadSessionWindow> threadWindow = new ConcurrentHashMap<>();
 
@@ -46,7 +45,7 @@ public class SessionWindow extends TimeWindow {
     public SessionWindow(Duration windowTimeout,
                      String[] partitionByColumnNames,
                      String timeColumnName,
-                     AggAllRowTimeWindowFunction aggTimeWindowFunction,
+                     AggTimeWindowFunction aggTimeWindowFunction,
                      String... returnedColumnNames) {
         this(windowTimeout, partitionByColumnNames, timeColumnName, null, aggTimeWindowFunction, StoreType.STORE_BY_COLUMN, returnedColumnNames);
     }
@@ -54,7 +53,7 @@ public class SessionWindow extends TimeWindow {
     public SessionWindow(Duration windowTimeout,
                          String[] partitionByColumnNames,
                          String timeColumnName,
-                         AggAllRowTimeWindowFunction aggTimeWindowFunction,
+                         AggTimeWindowFunction aggTimeWindowFunction,
                          StoreType storeType,
                          String... returnedColumnNames) {
         this(windowTimeout, partitionByColumnNames, timeColumnName, null, aggTimeWindowFunction, storeType, returnedColumnNames);
@@ -64,7 +63,7 @@ public class SessionWindow extends TimeWindow {
                         String[] partitionByColumnNames,
                         String timeColumnName,
                         TimeWindowFunction windowFunction,
-                        AggAllRowTimeWindowFunction aggTimeWindowFunction,
+                        AggTimeWindowFunction aggTimeWindowFunction,
                         StoreType storeType,
                         String... returnedColumnNames) {
         super(storeType, timeColumnName);

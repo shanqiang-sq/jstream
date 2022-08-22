@@ -1,11 +1,11 @@
 package io.github.shanqiang.window;
 
 import io.github.shanqiang.function.AggTimeWindowFunction;
+import io.github.shanqiang.function.ReduceTimeWindowFunction;
 import io.github.shanqiang.function.TimeWindowFunction;
 import io.github.shanqiang.table.Table;
 
 import java.time.Duration;
-import java.util.List;
 
 public class TumbleWindow {
     private final SlideWindow slideWindow;
@@ -13,8 +13,21 @@ public class TumbleWindow {
     public TumbleWindow(Duration windowSize,
                      String[] partitionByColumnNames,
                      String timeColumnName,
-                     AggTimeWindowFunction aggTimeWindowFunction,
+                     ReduceTimeWindowFunction reduceTimeWindowFunction,
                      String... columnNames) {
+        this.slideWindow = new SlideWindow(windowSize,
+                windowSize,
+                partitionByColumnNames,
+                timeColumnName,
+                reduceTimeWindowFunction,
+                columnNames);
+    }
+
+    public TumbleWindow(Duration windowSize,
+                        String[] partitionByColumnNames,
+                        String timeColumnName,
+                        AggTimeWindowFunction aggTimeWindowFunction,
+                        String... columnNames) {
         this.slideWindow = new SlideWindow(windowSize,
                 windowSize,
                 partitionByColumnNames,

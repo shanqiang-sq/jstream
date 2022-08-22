@@ -1,6 +1,5 @@
 package io.github.shanqiang.window;
 
-import io.github.shanqiang.function.AggAllRowTimeWindowFunction;
 import io.github.shanqiang.function.AggTimeWindowFunction;
 import io.github.shanqiang.function.TimeWindowFunction;
 import io.github.shanqiang.table.Row;
@@ -29,13 +28,13 @@ class InThreadSessionWindow extends InThreadWindow {
     private final TreeMap<Long, Set<List<Comparable>>> sortedByEndTime = new TreeMap<>();
     private final long windowTimeout;
     private final TimeWindowFunction windowFunction;
-    private final AggAllRowTimeWindowFunction aggTimeWindowFunction;
+    private final AggTimeWindowFunction aggTimeWindowFunction;
     private final String[] partitionByColumnNames;
     private final String timeColumnName;
 
     InThreadSessionWindow(long windowTimeout,
                           TimeWindowFunction windowFunction,
-                          AggAllRowTimeWindowFunction aggTimeWindowFunction,
+                          AggTimeWindowFunction aggTimeWindowFunction,
                           String[] partitionByColumnNames,
                           String timeColumnName) {
         this.windowTimeout = windowTimeout;

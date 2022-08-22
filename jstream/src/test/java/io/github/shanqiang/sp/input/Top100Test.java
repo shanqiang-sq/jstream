@@ -1,7 +1,6 @@
 package io.github.shanqiang.sp.input;
 
 import io.github.shanqiang.criteria.JoinCriteria;
-import io.github.shanqiang.function.AggAllRowTimeWindowFunction;
 import io.github.shanqiang.function.AggTimeWindowFunction;
 import io.github.shanqiang.function.TimeWindowFunction;
 import io.github.shanqiang.sp.Compute;
@@ -20,7 +19,6 @@ import io.github.shanqiang.util.AggregationUtil;
 import io.github.shanqiang.util.WindowUtil;
 import io.github.shanqiang.window.SessionWindow;
 import io.github.shanqiang.window.SlideWindow;
-import javafx.scene.control.Tab;
 import org.junit.Test;
 
 import java.time.Duration;
@@ -126,7 +124,7 @@ public class Top100Test {
                 Duration.ofMinutes(30),
                 hashBy,
                 "__time__",
-                new AggAllRowTimeWindowFunction() {
+                new AggTimeWindowFunction() {
                     @Override
                     public Comparable[] agg(List<Comparable> partitionByColumns, List<Row> rows, long windowStart, long windowEnd) {
                         return new Comparable[]{
