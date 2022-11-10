@@ -9,9 +9,9 @@ import io.github.shanqiang.table.RowByTable;
 import io.github.shanqiang.table.SlideTable;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.TableBuilder;
-import org.apache.http.annotation.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import oshi.annotation.concurrent.ThreadSafe;
 
 import java.time.Duration;
 import java.util.ArrayList;

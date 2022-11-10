@@ -4,9 +4,9 @@ import io.github.shanqiang.function.WindowFunction;
 import io.github.shanqiang.table.Row;
 import io.github.shanqiang.table.Table;
 import io.github.shanqiang.table.TableBuilder;
-import org.apache.http.annotation.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import oshi.annotation.concurrent.ThreadSafe;
 
 import java.time.Duration;
 import java.util.List;

@@ -5,9 +5,9 @@ import io.github.shanqiang.table.Column;
 import io.github.shanqiang.table.Row;
 import io.github.shanqiang.table.SortedTable;
 import io.github.shanqiang.table.Table;
-import org.apache.http.annotation.ThreadSafe;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import oshi.annotation.concurrent.ThreadSafe;
 
 import java.util.ArrayList;
 import java.util.List;
