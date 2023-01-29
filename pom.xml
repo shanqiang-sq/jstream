@@ -32,7 +32,7 @@ under the License.
 
     <modules>
         <module>jstream-shaded-jar</module>
-        <module>jstream</module>
+        <module>jstream-core</module>
     </modules>
 
     <dependencyManagement>

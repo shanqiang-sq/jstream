@@ -8,7 +8,7 @@
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>jstream</artifactId>
+    <artifactId>jstream-core</artifactId>
     <packaging>jar</packaging>
 
     <properties>
@@ -19,6 +19,8 @@
         <dependency>
             <groupId>io.github.shanqiang-sq</groupId>
             <artifactId>jstream-shaded-jar</artifactId>
+            <!-- 用${project.version}或直接写当前版本比如2.0.7-SNAPSHOT都不行 -->
+            <version>2.0.6</version>
         </dependency>
 
         <dependency>
