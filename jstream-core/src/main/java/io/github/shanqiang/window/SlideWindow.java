@@ -447,14 +447,14 @@ public class SlideWindow extends TimeWindow {
                     windowTime.startTime += slideDurationMs;
 
                     if (dataTime >= windowTime.startTime + windowSizeDurationMs) {
-                        triggerOneRowWindow(retTable, table, i, dataTime);
+//                        triggerOneRowWindow(retTable, table, i, dataTime);
                         warn(dataTime, windowTime.startTime, null);
                     } else {
                         enterWindow(table, i, partitionedTables, partitionedAggResult, windowTime);
                     }
                 } else {
                     if (dataTime < windowTime.startTime) {
-                        triggerOneRowWindow(retTable, table, i, dataTime);
+//                        triggerOneRowWindow(retTable, table, i, dataTime);
                         warn(dataTime, windowTime.startTime, null);
                     } else {
                         enterWindow(table, i, partitionedTables, partitionedAggResult, windowTime);
